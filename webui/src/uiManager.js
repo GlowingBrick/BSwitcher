@@ -10,17 +10,16 @@ export class UIManager {
         
         this.modal = document.getElementById('addRuleModal');
         this.configModal = document.getElementById('configModal');
+        this.powerModal = document.getElementById('powerDataModal');
+
         this.allApps = [];
         this.refreshBtn = null;
         this.rulesList = null;
-        this.pendingDeleteRuleId = null;
+        this.pendingDeleteAppPackage = null;
         this.deleteTimeout = null;
         
-        // 增强的配置字段定义
         this.configFields = [];
-        
-        // 按分类分组
-        this.configCategories = this.groupConfigByCategory();
+        this.configCategories = {};
     }
 
     // 初始化UI
@@ -49,8 +48,33 @@ export class UIManager {
         }
     }
 
+    // 加载系统信息
+    async loadSystemInfo() {
+        try {
+            await this.infoManager.loadSystemInfo();
+            this.renderSystemInfo();
+        } catch (error) {
+            console.error('加载系统信息失败:', error);
+        }
+    }
 
-    // 绑定事件
+    // 渲染系统信息
+    renderSystemInfo() {
+        const systemInfo = this.infoManager.getSystemInfo();
+        const systemInfoElement = document.getElementById('systemInfo');
+        
+        if (systemInfoElement && systemInfo) {
+            systemInfoElement.innerHTML = `
+                <div class="app-name">${systemInfo.name || 'BSwitcher'}</div>
+                <div class="app-meta">
+                    <div>作者: ${systemInfo.author || 'Unknown'}</div>
+                    <div>版本: ${systemInfo.version || '1.0.0'}</div>
+                </div>
+            `;
+        }
+    }
+
+    // 绑定事件 - 单一版本
     bindEvents() {
         // 添加规则按钮
         document.getElementById('addRuleBtn').addEventListener('click', () => {
@@ -77,6 +101,19 @@ export class UIManager {
             this.configManager.updateDefaultMode(e.target.value);
         });
 
+        // 功耗列表按钮
+        document.getElementById('showPowerDataBtn').addEventListener('click', () => {
+            this.showPowerDataModal();
+        });
+
+        document.querySelector('.close-power').addEventListener('click', () => {
+            this.hidePowerDataModal();
+        });
+
+        document.getElementById('closePowerBtn').addEventListener('click', () => {
+            this.hidePowerDataModal();
+        });
+
         // 点击模态框外部关闭
         this.modal.addEventListener('click', (e) => {
             if (e.target === this.modal) {
@@ -100,22 +137,48 @@ export class UIManager {
             });
         }
 
-        // 关键修复：为规则列表容器绑定事件委托
+        // 为规则列表容器绑定事件委托
         this.rulesList = document.getElementById('rulesList');
         if (this.rulesList) {
             this.rulesList.addEventListener('click', (e) => {
                 // 检查点击的是否是删除按钮
                 if (e.target.classList.contains('delete-rule')) {
-                    const ruleId = e.target.getAttribute('data-rule-id');
-                    if (ruleId) {
-                        this.handleDeleteClick(ruleId, e.target);
+                    const appPackage = e.target.getAttribute('data-app-package');
+                    if (appPackage) {
+                        this.handleDeleteClick(appPackage, e.target);
                     }
+                }
+            });
+        }
+
+        // 配置页面事件
+        document.getElementById('showConfigBtn').addEventListener('click', () => {
+            this.showConfigModal();
+        });
+
+        document.querySelector('.close-config').addEventListener('click', () => {
+            this.hideConfigModal();
+        });
+
+        document.getElementById('cancelConfigBtn').addEventListener('click', () => {
+            this.hideConfigModal();
+        });
+
+        document.getElementById('saveConfigBtn').addEventListener('click', () => {
+            this.saveConfig();
+        });
+
+        // 场景模式变化时更新mode_file的可用状态
+        if (this.configModal) {
+            this.configModal.addEventListener('change', (e) => {
+                if (e.target.name === 'scene') {
+                    this.updateModeFileAvailability(e.target.checked);
                 }
             });
         }
     }
 
-    // 修改 handleDeleteClick 方法，使用包名
+    // 删除按钮处理
     handleDeleteClick(appPackage, button) {
         // 如果已经有待删除的规则
         if (this.pendingDeleteAppPackage === appPackage) {
@@ -151,8 +214,7 @@ export class UIManager {
         button.setAttribute('data-original-class', originalClass);
     }
 
-
-    // 修改取消删除方法
+    // 取消删除
     cancelDelete(button, originalText, originalClass) {
         if (button) {
             button.textContent = originalText || '删除';
@@ -162,9 +224,7 @@ export class UIManager {
         this.deleteTimeout = null;
     }
 
-
-
-    // 修改 executeDelete 方法，使用包名
+    // 执行删除
     async executeDelete(appPackage) {
         // 清除超时
         if (this.deleteTimeout) {
@@ -194,6 +254,190 @@ export class UIManager {
         }
     }
 
+    // 功耗列表功能
+    async showPowerDataModal() {
+        try {
+            this.powerModal.style.display = 'block';
+            this.showPowerLoading();
+            
+            // 加载功耗数据
+            const powerData = await this.loadPowerData();
+            this.renderPowerData(powerData);
+            
+        } catch (error) {
+            console.error('加载功耗数据失败:', error);
+            this.showPowerError('加载功耗数据失败: ' + error.message);
+        }
+    }
+
+    // 隐藏功耗数据模态框
+    hidePowerDataModal() {
+        if (this.powerModal) {
+            this.powerModal.style.display = 'none';
+        }
+    }
+
+    // 加载功耗数据
+    async loadPowerData() {
+        const { exec } = await import('./ksu.js');
+        
+        const request = {
+            target: 'powerdata',
+            mode: 'read'
+        };
+        
+        const requestJson = JSON.stringify(request);
+        const escapedJson = requestJson.replace(/'/g, "'\\''").replace(/\n/g, ' ').replace(/\r/g, ' ');
+        const command = `echo '${escapedJson}' | nc -U /dev/BSwitcher`;
+        
+        const result = await exec(command);
+        
+        if (result.errno === 0 && result.stdout) {
+            return JSON.parse(result.stdout);
+        } else {
+            throw new Error(result.stderr || '获取功耗数据失败');
+        }
+    }
+
+    // 显示功耗加载状态
+    showPowerLoading() {
+        const powerList = document.getElementById('powerList');
+        const powerSummary = document.getElementById('powerSummary');
+        
+        if (powerList) {
+            powerList.innerHTML = '<div class="power-loading">正在加载功耗数据...</div>';
+        }
+        
+        if (powerSummary) {
+            powerSummary.innerHTML = '<div class="power-loading">正在计算统计信息...</div>';
+        }
+    }
+
+    // 显示功耗错误
+    showPowerError(message) {
+        const powerList = document.getElementById('powerList');
+        const powerSummary = document.getElementById('powerSummary');
+        
+        if (powerList) {
+            powerList.innerHTML = `<div class="power-error">${message}</div>`;
+        }
+        
+        if (powerSummary) {
+            powerSummary.innerHTML = `<div class="power-error">${message}</div>`;
+        }
+    }
+
+    // 渲染功耗数据
+    renderPowerData(powerData) {
+        if (!powerData || !Array.isArray(powerData)) {
+            this.showPowerError('无效的功耗数据格式');
+            return;
+        }
+
+        // 处理数据：计算功率、转换应用名称、排序
+        const processedData = this.processPowerData(powerData);
+        
+        // 渲染总体统计
+        this.renderPowerSummary(processedData);
+        
+        // 渲染应用列表
+        this.renderPowerList(processedData);
+    }
+
+    // 处理功耗数据
+    processPowerData(powerData) {
+        return powerData
+            .map(item => {
+                const powerJoules = parseFloat(item.power_joules) || 0;
+                const timeSec = parseFloat(item.time_sec) || 0;
+                const powerWatt = timeSec > 0 ? powerJoules / timeSec : 0;
+                
+                return {
+                    packageName: item.name,
+                    appName: this.appLoader.getAppName(item.name),
+                    powerJoules,
+                    timeSec,
+                    powerWatt
+                };
+            })
+            .filter(item => item.timeSec > 0) // 过滤掉时间为0的数据
+            .sort((a, b) => b.powerJoules - a.powerJoules) // 按能耗排序
+            .slice(0, 10); // 取前10名
+    }
+
+    // 渲染总体统计
+    renderPowerSummary(processedData) {
+        const powerSummary = document.getElementById('powerSummary');
+        if (!powerSummary) return;
+
+        // 计算总体统计
+        const totalTime = processedData.reduce((sum, item) => sum + item.timeSec, 0);
+        const totalEnergy = processedData.reduce((sum, item) => sum + item.powerJoules, 0);
+        const avgPower = totalTime > 0 ? totalEnergy / totalTime : 0;
+
+        // 格式化数值
+        const formatNumber = (num, decimals = 1) => num.toFixed(decimals);
+        const formatTime = (seconds) => {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return `${hours}小时${minutes}分钟`;
+        };
+
+        powerSummary.innerHTML = `
+            <div class="power-summary-stats">
+                <div class="power-stat-item">
+                    <div class="power-stat-value">${formatNumber(totalEnergy)}</div>
+                    <div class="power-stat-label">能耗 (焦耳)</div>
+                </div>
+                <div class="power-stat-item">
+                    <div class="power-stat-value">${formatTime(totalTime)}</div>
+                    <div class="power-stat-label">使用时间</div>
+                </div>
+                <div class="power-stat-item">
+                    <div class="power-stat-value">${formatNumber(avgPower)}</div>
+                    <div class="power-stat-label">平均功率 (瓦特)</div>
+                </div>
+            </div>
+        `;
+    }
+
+    // 渲染功耗列表
+    renderPowerList(processedData) {
+        const powerList = document.getElementById('powerList');
+        if (!powerList) return;
+
+        if (processedData.length === 0) {
+            powerList.innerHTML = '<div class="power-loading">暂无功耗数据</div>';
+            return;
+        }
+
+        powerList.innerHTML = processedData.map((item, index) => `
+            <div class="power-item">
+                <div class="power-item-info">
+                    <div class="power-app-name" title="${item.appName}">${index + 1}. ${item.appName}</div>
+                    <div class="power-app-details">包名: ${item.packageName}</div>
+                </div>
+                <div class="power-app-stats">
+                    <div class="power-watt">${item.powerWatt.toFixed(1)} W</div>
+                    <div class="power-details">
+                        ${item.powerJoules.toFixed(1)} J / ${this.formatTimeShort(item.timeSec)}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // 格式化时间（简短版本）
+    formatTimeShort(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        
+        if (hours > 0) {
+            return `${hours}h${minutes}m`;
+        } else {
+            return `${minutes}m`;
+        }
+    }
 
     // 刷新应用列表
     async refreshAppList() {
@@ -327,8 +571,8 @@ export class UIManager {
 
             // 简化显示文本
             const displayText = hasRule
-            ? `${app.name} - 已配置`
-            : app.name;
+                ? `${app.name} - 已配置`
+                : app.name;
 
             option.textContent = displayText;
             option.disabled = hasRule;
@@ -463,23 +707,117 @@ export class UIManager {
         }
     }
 
-    // 显示Toast提示
-    async showToast(message) {
+    // 配置页面相关方法
+    async showConfigModal() {
         try {
-            const { toast } = await import('./ksu.js');
-            if (typeof ksu !== 'undefined') {
-                toast(message);
-            } else {
-                console.log('Toast (模拟):', message);
-                // 在网页环境中使用alert作为备用
-                alert(message);
-            }
+            await this.infoManager.loadConfig();
+            this.renderConfigForm();
+            this.configModal.style.display = 'block';
         } catch (error) {
-            console.log('Toast显示失败:', error);
-            alert(message); // 最终备用方案
+            this.showToast('加载配置失败: ' + error.message);
         }
     }
 
+    // 隐藏配置模态框
+    hideConfigModal() {
+        if (this.configModal) {
+            this.configModal.style.display = 'none';
+        }
+    }
+
+    // 保存配置
+    async saveConfig() {
+        try {
+            const formData = this.getConfigFormData();
+            await this.infoManager.saveConfig(formData);
+            this.showToast('配置保存成功');
+            this.hideConfigModal();
+        } catch (error) {
+            this.showToast('保存配置失败: ' + error.message);
+        }
+    }
+
+    // 渲染配置表单
+    renderConfigForm() {
+        const configForm = document.getElementById('configForm');
+        if (!configForm) return;
+
+        const config = this.infoManager.getConfig();
+        
+        // 按分类渲染
+        configForm.innerHTML = Object.entries(this.configCategories).map(([category, fields]) => {
+            const categoryFields = fields.map(field => this.renderConfigField(field, config)).join('');
+            
+            return `
+                <div class="config-group">
+                    <h4>${category}</h4>
+                    ${categoryFields}
+                </div>
+            `;
+        }).join('');
+
+        // 绑定字段依赖关系的事件
+        this.bindFieldDependencies();
+    }
+
+    // 渲染单个配置字段
+    renderConfigField(field, config) {
+        const value = config[field.key] !== undefined ? config[field.key] : '';
+        const isDisabled = this.isFieldDisabled(field, config);
+        const options = this.getFieldOptions(field, config);
+        
+        let fieldHtml = '';
+        
+        switch (field.type) {
+            case 'number':
+                fieldHtml = `
+                    <input type="number" 
+                           name="${field.key}" 
+                           value="${value}" 
+                           ${field.min ? `min="${field.min}"` : ''}
+                           ${field.max ? `max="${field.max}"` : ''}
+                           ${isDisabled ? 'disabled' : ''}>
+                `;
+                break;
+                
+            case 'checkbox':
+                fieldHtml = `
+                    <input type="checkbox" 
+                           name="${field.key}" 
+                           ${value ? 'checked' : ''}
+                           ${isDisabled ? 'disabled' : ''}>
+                `;
+                break;
+                
+            case 'select':
+                const optionHtml = options.map(opt => 
+                    `<option value="${opt.value}" ${value === opt.value ? 'selected' : ''}>${opt.label}</option>`
+                ).join('');
+                fieldHtml = `
+                    <select name="${field.key}" ${isDisabled ? 'disabled' : ''}>
+                        <option value="">请选择</option>
+                        ${optionHtml}
+                    </select>
+                `;
+                break;
+                
+            default: // text
+                fieldHtml = `
+                    <input type="text" 
+                           name="${field.key}" 
+                           value="${value}" 
+                           ${isDisabled ? 'disabled' : ''}>
+                `;
+        }
+        
+        return `
+            <div class="config-item ${isDisabled ? 'disabled' : ''}">
+                <label>${field.label}</label>
+                ${fieldHtml}
+                <div class="config-description">${field.description}</div>
+            </div>
+        `;
+    }
 
     // 按分类分组配置字段
     groupConfigByCategory() {
@@ -504,7 +842,6 @@ export class UIManager {
                         value: mode,
                         label: mode
                     }));
-                // 可以在这里添加其他动态选项类型
                 default:
                     return [];
             }
@@ -522,14 +859,6 @@ export class UIManager {
         // 如果依赖字段的值不等于条件值，则禁用此字段
         return dependentValue !== condition;
     }
-
-    // 获取受影响的字段
-    getAffectedFields(fieldKey) {
-        return this.configFields.filter(field => 
-            field.affects && field.affects.includes(fieldKey)
-        );
-    }
-
 
     // 绑定字段依赖关系事件
     bindFieldDependencies() {
@@ -591,234 +920,10 @@ export class UIManager {
         return config;
     }
 
-
-    // 加载系统信息
-    async loadSystemInfo() {
-        try {
-            await this.infoManager.loadSystemInfo();
-            this.renderSystemInfo();
-        } catch (error) {
-            console.error('加载系统信息失败:', error);
-        }
-    }
-
-    // 渲染系统信息
-    renderSystemInfo() {
-        const systemInfo = this.infoManager.getSystemInfo();
-        const systemInfoElement = document.getElementById('systemInfo');
-        
-        if (systemInfoElement && systemInfo) {
-            systemInfoElement.innerHTML = `
-                <div class="app-name">${systemInfo.name || 'BSwitcher'}</div>
-                <div class="app-meta">
-                    <div>作者: ${systemInfo.author || 'Unknown'}</div>
-                    <div>版本: ${systemInfo.version || '1.0.0'}</div>
-                </div>
-            `;
-        }
-    }
-
-    // 绑定事件
-    bindEvents() {
-        // 现有的事件绑定...
-        document.getElementById('addRuleBtn').addEventListener('click', () => {
-            this.showModal();
-        });
-
-        document.querySelector('.close').addEventListener('click', () => {
-            this.hideModal();
-        });
-
-        document.getElementById('cancelBtn').addEventListener('click', () => {
-            this.hideModal();
-        });
-
-        document.getElementById('saveRuleBtn').addEventListener('click', () => {
-            this.saveRule();
-        });
-
-        document.getElementById('defaultMode').addEventListener('change', (e) => {
-            this.configManager.updateDefaultMode(e.target.value);
-        });
-
-        this.modal.addEventListener('click', (e) => {
-            if (e.target === this.modal) {
-                this.hideModal();
-            }
-        });
-
-        const appSearch = document.getElementById('appSearch');
-        if (appSearch) {
-            appSearch.addEventListener('input', (e) => {
-                this.searchApps(e.target.value);
-            });
-        }
-
-        this.refreshBtn = document.getElementById('refreshAppListBtn');
-        if (this.refreshBtn) {
-            this.refreshBtn.addEventListener('click', () => {
-                this.refreshAppList();
-            });
-        }
-
-        this.rulesList = document.getElementById('rulesList');
-        if (this.rulesList) {
-            this.rulesList.addEventListener('click', (e) => {
-                if (e.target.classList.contains('delete-rule')) {
-                    const appPackage = e.target.getAttribute('data-app-package');
-                    if (appPackage) {
-                        this.handleDeleteClick(appPackage, e.target);
-                    }
-                }
-            });
-        }
-
-        // 新增配置页面事件
-        document.getElementById('showConfigBtn').addEventListener('click', () => {
-            this.showConfigModal();
-        });
-
-        document.querySelector('.close-config').addEventListener('click', () => {
-            this.hideConfigModal();
-        });
-
-        document.getElementById('cancelConfigBtn').addEventListener('click', () => {
-            this.hideConfigModal();
-        });
-
-        document.getElementById('saveConfigBtn').addEventListener('click', () => {
-            this.saveConfig();
-        });
-
-        // 场景模式变化时更新mode_file的可用状态
-        if (this.configModal) {
-            this.configModal.addEventListener('change', (e) => {
-                if (e.target.name === 'scene') {
-                    this.updateModeFileAvailability(e.target.checked);
-                }
-            });
-        }
-    }
-
-
-    // 显示配置模态框
-    async showConfigModal() {
-        try {
-            await this.infoManager.loadConfig();
-            this.renderConfigForm();
-            this.configModal.style.display = 'block';
-        } catch (error) {
-            this.showToast('加载配置失败: ' + error.message);
-        }
-    }
-
-    // 隐藏配置模态框
-    hideConfigModal() {
-        if (this.configModal) {
-            this.configModal.style.display = 'none';
-        }
-    }
-
-    // 保存配置
-    async saveConfig() {
-        try {
-            const formData = this.getConfigFormData();
-            await this.infoManager.saveConfig(formData);
-            this.showToast('配置保存成功');
-            this.hideConfigModal();
-        } catch (error) {
-            this.showToast('保存配置失败: ' + error.message);
-        }
-    }
-
     // 获取配置表单数据（用于保存）
     getConfigFormData() {
         return this.getCurrentConfigFormData();
     }
-
-    // 渲染配置表单
-    renderConfigForm() {
-        const configForm = document.getElementById('configForm');
-        if (!configForm) return;
-
-        const config = this.infoManager.getConfig();
-        
-        // 按分类渲染
-        configForm.innerHTML = Object.entries(this.configCategories).map(([category, fields]) => {
-            const categoryFields = fields.map(field => this.renderConfigField(field, config)).join('');
-            
-            return `
-                <div class="config-group">
-                    <h4>${category}</h4>
-                    ${categoryFields}
-                </div>
-            `;
-        }).join('');
-
-        // 绑定字段依赖关系的事件
-        this.bindFieldDependencies();
-    }
-
-
-    // 渲染单个配置字段
-    renderConfigField(field, config) {
-        const value = config[field.key] !== undefined ? config[field.key] : '';
-        const isDisabled = this.isFieldDisabled(field, config);
-        const options = this.getFieldOptions(field, config);
-        
-        let fieldHtml = '';
-        
-        switch (field.type) {
-            case 'number':
-                fieldHtml = `
-                    <input type="number" 
-                           name="${field.key}" 
-                           value="${value}" 
-                           ${field.min ? `min="${field.min}"` : ''}
-                           ${field.max ? `max="${field.max}"` : ''}
-                           ${isDisabled ? 'disabled' : ''}>
-                `;
-                break;
-                
-            case 'checkbox':
-                fieldHtml = `
-                    <input type="checkbox" 
-                           name="${field.key}" 
-                           ${value ? 'checked' : ''}
-                           ${isDisabled ? 'disabled' : ''}>
-                `;
-                break;
-                
-            case 'select':
-                const optionHtml = options.map(opt => 
-                    `<option value="${opt.value}" ${value === opt.value ? 'selected' : ''}>${opt.label}</option>`
-                ).join('');
-                fieldHtml = `
-                    <select name="${field.key}" ${isDisabled ? 'disabled' : ''}>
-                        <option value="">请选择</option>
-                        ${optionHtml}
-                    </select>
-                `;
-                break;
-                
-            default: // text
-                fieldHtml = `
-                    <input type="text" 
-                           name="${field.key}" 
-                           value="${value}" 
-                           ${isDisabled ? 'disabled' : ''}>
-                `;
-        }
-        
-        return `
-            <div class="config-item ${isDisabled ? 'disabled' : ''}">
-                <label>${field.label}</label>
-                ${fieldHtml}
-                <div class="config-description">${field.description}</div>
-            </div>
-        `;
-    }
-
 
     // 更新mode_file字段的可用状态
     updateModeFileAvailability(sceneEnabled) {
@@ -836,5 +941,20 @@ export class UIManager {
         }
     }
 
-
+    // 显示Toast提示
+    async showToast(message) {
+        try {
+            const { toast } = await import('./ksu.js');
+            if (typeof ksu !== 'undefined') {
+                toast(message);
+            } else {
+                console.log('Toast (模拟):', message);
+                // 在网页环境中使用alert作为备用
+                alert(message);
+            }
+        } catch (error) {
+            console.log('Toast显示失败:', error);
+            alert(message); // 最终备用方案
+        }
+    }
 }

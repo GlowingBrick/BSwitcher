@@ -1,27 +1,62 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BSwitcher</title>
     <link rel="stylesheet" href="src/style.css">
 </head>
+
 <body>
     <div class="container">
         <header>
             <h1>BSwitcher</h1>
         </header>
-        
-    <!-- 在应用规则列表的section后面添加配置入口 -->
-    <div class="section">
-        <div class="section-header">
-            <h2>系统信息与配置</h2>
-            <button id="showConfigBtn" class="btn btn-secondary">系统配置</button>
+
+        <div class="section">
+            <div class="section-header">
+                <h2>系统信息</h2>
+                <button id="showPowerDataBtn" class="btn btn-icon btn-red" title="功耗列表">
+                    📊
+                </button>
+                <button id="showConfigBtn" class="btn btn-icon btn-blue" title="系统配置">
+                    ⚙️
+                </button>
+
+            </div>
+            <div id="systemInfo" class="system-info">
+                <!-- 系统信息将通过JS动态生成 -->
+            </div>
         </div>
-        <div id="systemInfo" class="system-info">
-            <!-- 系统信息将通过JS动态生成 -->
+
+        <!-- 功耗列表模态框 -->
+        <div id="powerDataModal" class="modal">
+            <div class="modal-content" style="max-width: 800px;">
+                <div class="modal-header">
+                    <h3>能耗统计</h3>
+                    <span class="close-power">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <!-- 总体统计 -->
+                    <div id="powerSummary" class="power-summary">
+                        <!-- 总体统计信息将通过JS动态生成 -->
+                    </div>
+
+                    <!-- 应用功耗列表 -->
+                    <div class="power-list-container">
+                        <h4>应用功耗</h4>
+                        <div id="powerList" class="power-list">
+                            <!-- 功耗列表将通过JS动态生成 -->
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button id="closePowerBtn" class="btn btn-primary">关闭</button>
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
 
         <!-- 默认模式设置 -->
         <div class="section">
@@ -46,8 +81,6 @@
         </div>
     </div> <!-- 关闭 container -->
 
-
-
     <!-- 配置模态框 -->
     <div id="configModal" class="modal">
         <div class="modal-content" style="max-width: 600px;">
@@ -67,7 +100,7 @@
         </div>
     </div>
 
-    <!-- 添加规则的模态框 - 移到body的最后，不在container内 -->
+    <!-- 添加规则的模态框 -->
     <div id="addRuleModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -114,4 +147,5 @@
 
     <script type="module" src="src/main.js"></script>
 </body>
+
 </html>

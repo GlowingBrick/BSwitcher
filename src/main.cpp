@@ -1,11 +1,13 @@
-
 #include <main.hpp>
+
 std::shared_ptr<MainConfigTarget> mainConfigTarget;
 std::shared_ptr<SchedulerConfigTarget> schedulerConfigTarget;
 std::shared_ptr<InfoConfigTarget> infoConfigTarget;
 std::shared_ptr<ApplistConfigTarget> appListTarget;
 std::shared_ptr<ConfigListTarget> configlistTarget;
 std::shared_ptr<AvailableModesTarget> availableModesTarget;
+std::shared_ptr<PowerMonitorTarget> powerMonitorTarget;
+
 std::string sState = "";
 std::string sEntry = "";
 int sleepDuring = 2;
@@ -18,52 +20,56 @@ int init_service()
     infoConfigTarget = std::make_shared<InfoConfigTarget>("Custom", "unknow", "0.0.0");
     appListTarget = std::make_shared<ApplistConfigTarget>();
     availableModesTarget = std::make_shared<AvailableModesTarget>();
-    const nlohmann::json CONFIG_SCHEMA = {      //这是可配置接口
-        {{"key", "low_battery_threshold"},
-         {"type", "number"},
-         {"label", "低电量阈值"},
-         {"description", "电池电量低于此百分比时自动切换到省电模式"},
-         {"min", 1},
-         {"max", 100},
-         {"category", "电源管理"}},
-        {{"key", "poll_interval"},
-         {"type", "number"},
-         {"label", "轮询间隔"},
-         {"description", "检查应用状态的时间间隔（秒）"},
-         {"min", 1},
-         {"max", 60},
-         {"category", "基本设置"}},
-        {{"key", "power_monitoring"},
-         {"type", "checkbox"},
-         {"label", "电源监控"},
-         {"description", "是否监控电源状态变化"},
-         {"category", "电源管理"}},
-        {{"key", "scene"},
-         {"type", "checkbox"},
-         {"label", "Scene模式"},
-         {"description", "使用Scene的调度配置接口"},
-         {"category", "模式设置"},
-         {"affects", {"mode_file"}}},
-        {{"key", "mode_file"},
-         {"type", "text"},
-         {"label", "模式文件路径"},
-         {"description", "手动指定模式配置文件路径（仅在场景模式禁用时有效）"},
-         {"category", "模式设置"},
-         {"dependsOn", {{"field", "scene"}, {"condition", false}}}},
-        {{"key", "screen_off"},
-         {"type", "select"},
-         {"label", "屏幕关闭模式"},
-         {"description", "屏幕关闭时自动切换到的模式"},
-         {"category", "模式设置"},
-         {"options", "availableModes"}}};
+    powerMonitorTarget = std::make_shared<PowerMonitorTarget>();
+
+    const nlohmann::json CONFIG_SCHEMA = {// 这是可配置接口
+                                          {{"key", "low_battery_threshold"},
+                                           {"type", "number"},
+                                           {"label", "低电量阈值"},
+                                           {"description", "电池电量低于此百分比时自动切换到省电模式"},
+                                           {"min", 1},
+                                           {"max", 100},
+                                           {"category", "电源管理"}},
+                                          {{"key", "poll_interval"},
+                                           {"type", "number"},
+                                           {"label", "轮询间隔"},
+                                           {"description", "检查应用状态的时间间隔（秒）"},
+                                           {"min", 1},
+                                           {"max", 60},
+                                           {"category", "基本设置"}},
+                                          {{"key", "power_monitoring"},
+                                           {"type", "checkbox"},
+                                           {"label", "电源监控"},
+                                           {"description", "是否监控电源状态变化"},
+                                           {"category", "电源管理"}},
+                                          {{"key", "scene"},
+                                           {"type", "checkbox"},
+                                           {"label", "Scene模式"},
+                                           {"description", "使用Scene的调度配置接口"},
+                                           {"category", "模式设置"},
+                                           {"affects", {"mode_file"}}},
+                                          {{"key", "mode_file"},
+                                           {"type", "text"},
+                                           {"label", "模式文件路径"},
+                                           {"description", "手动指定模式配置文件路径（仅在场景模式禁用时有效）"},
+                                           {"category", "模式设置"},
+                                           {"dependsOn", {{"field", "scene"}, {"condition", false}}}},
+                                          {{"key", "screen_off"},
+                                           {"type", "select"},
+                                           {"label", "屏幕关闭模式"},
+                                           {"description", "屏幕关闭时自动切换到的模式"},
+                                           {"category", "模式设置"},
+                                           {"options", "availableModes"}}};
     configlistTarget = std::make_shared<ConfigListTarget>(CONFIG_SCHEMA);
 
-    JSONSocket::registerConfigTarget(mainConfigTarget); // 初始化所有socket模块
+    JSONSocket::registerConfigTarget(mainConfigTarget); // 注册所有socket模块
     JSONSocket::registerConfigTarget(schedulerConfigTarget);
     JSONSocket::registerConfigTarget(infoConfigTarget);
     JSONSocket::registerConfigTarget(appListTarget);
     JSONSocket::registerConfigTarget(configlistTarget);
     JSONSocket::registerConfigTarget(availableModesTarget);
+    JSONSocket::registerConfigTarget(powerMonitorTarget);
+
     if (!JSONSocket::initialize("/dev/BSwitcher"))
     {
         return 0;
@@ -111,7 +117,9 @@ bool dummy_write_mode(const std::string &mode)
 
 int load_config()
 {
-    write_mode = dummy_write_mode;  // 防段错误
+    std::unique_lock<std::mutex> lock(mainConfigTarget->configMutex);   //获取锁
+
+    write_mode = dummy_write_mode;              // 防段错误
     if (mainConfigTarget->config.scene == true) // scene模式启用时，加载/data/powercfg.json
     {
         std::ifstream powercfgfile("/data/powercfg.json");
@@ -176,34 +184,40 @@ int load_config()
         powercfgfile.close();
     }
 
+    if(mainConfigTarget->config.power_monitoring)   //是否启用功耗监控
     {
-        std::unique_lock<std::mutex> lock(mainConfigTarget->configMutex);
-        if (mainConfigTarget->config.scene != true)
-        { // 如果不是scene模式
-            if (std::filesystem::exists(mainConfigTarget->config.mode_file))
-            { // 如果自定义mode_file可用
-                sState = mainConfigTarget->config.mode_file;
-                infoConfigTarget->setData("Custom", "", "");
-            }
-            else
-            {
-                infoConfigTarget->setData("No config available", "", "");
-                LOGE("No config available, Waiting for configuration.");
-                lock.unlock();
+        powerMonitorTarget->start();
+    }
+    else
+    {
+        powerMonitorTarget->stop();
+    }
 
-                return -1;
-            }
-        }
-        write_mode = (mainConfigTarget->config.scene) ? scene_write_mode : unscene_write_mode; // 定义写入函数
-        if (mainConfigTarget->config.poll_interval <= 1)
-        {
-            sleepDuring = -1;
+    if (mainConfigTarget->config.scene != true)
+    { // 如果不是scene模式
+        if (std::filesystem::exists(mainConfigTarget->config.mode_file))
+        { // 如果自定义mode_file可用
+            sState = mainConfigTarget->config.mode_file;
+            infoConfigTarget->setData("Custom", "", "");
         }
         else
         {
-            sleepDuring = mainConfigTarget->config.poll_interval - 1; // 定义时间间隔
+            infoConfigTarget->setData("No config available", "", "");
+            LOGE("No config available, Waiting for configuration.");
+
+            return -1;
         }
     }
+    write_mode = (mainConfigTarget->config.scene) ? scene_write_mode : unscene_write_mode; // 定义写入函数
+    if (mainConfigTarget->config.poll_interval <= 1)
+    {
+        sleepDuring = -1;
+    }
+    else
+    {
+        sleepDuring = mainConfigTarget->config.poll_interval - 1; // 定义时间间隔
+    }
+
     return 0;
 }
 
@@ -216,7 +230,7 @@ bool ScreenState()
         int brightness = 0;
         brightness_file >> brightness;
         bool state = (brightness > 0);
-
+        powerMonitorTarget->setScreenStatus(state);
         return state;
     }
     return true;
@@ -258,7 +272,7 @@ int main()
 
     if (fork() > 0)
     {
-        exit(0);   //孤儿模拟器.jpg
+        exit(0); // 孤儿模拟器.jpg
     }
 
     if (!init_service())
@@ -283,8 +297,9 @@ int main()
 
     auto &schedulerMutex = schedulerConfigTarget->configMutex;
     auto &schedulerConfig = schedulerConfigTarget->config;
+
     LOGD("Enter main loop");
-    while (1)
+    while (1) // 主循环
     {
         if (unlikely(mainModify))
         {
@@ -320,6 +335,7 @@ int main()
         {
             std::unique_lock<std::mutex> lock(mainMutex);
 
+
             if (getBatteryLevel() < mainConfig.low_battery_threshold)
             {
                 newMode = "powersave";
@@ -336,6 +352,8 @@ int main()
                     if (!schedulerConfig.apps.empty())
                     {
                         currentApp = getForegroundApp();
+                        powerMonitorTarget->setForegroundApp(currentApp);
+
                         LOGD("CurrentAPP: %s", currentApp.c_str());
                         if (!currentApp.empty())
                         { // 如果currentApp不为空

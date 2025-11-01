@@ -1,3 +1,4 @@
+
 #include <vector>
 #include <string>
 #include <sys/inotify.h>
@@ -21,7 +22,6 @@ public:
     static bool initialize(const std::vector<std::string>& file_paths, int timeout_ms_param) {
         timeout_ms = timeout_ms_param;
         
-        // 如果已经初始化，先清理
         if (inotify_fd >= 0) {
             cleanup();
         }
@@ -59,8 +59,7 @@ public:
         return true;
     }
     
-    // 等待文件修改事件
-    static bool wait() {
+    static bool wait() {    //主要的阻塞函数
         if (inotify_fd < 0) {
             LOGE("FileWatcher not initialized");
             return false;
@@ -87,7 +86,7 @@ public:
             LOGD("Waiting for file modification events indefinitely");
         }
         
-        int result = select(inotify_fd + 1, &read_fds, nullptr, nullptr, timeout_ptr);
+        int result = select(inotify_fd + 1, &read_fds, nullptr, nullptr, timeout_ptr);  //不出意外会在这里阻塞
         
         if (result < 0) {
             if (errno == EINTR) {
@@ -101,7 +100,6 @@ public:
             return true; // 超时是正常情况
         }
         
-        // 有事件发生，读取并清除所有事件
         if (FD_ISSET(inotify_fd, &read_fds)) {
             if (clearEvents()) {
                 LOGD("File modification detected and events cleared");
@@ -116,8 +114,8 @@ public:
         return true;
     }
     
-    // 清理资源
-    static void cleanup() {
+
+    static void cleanup() {    // 清理资源
         LOGI("Cleaning up FileWatcher resources");
         
         for (int wd : watch_descriptors) {
@@ -138,18 +136,16 @@ public:
         LOGI("FileWatcher cleanup completed");
     }
     
-    // 获取当前监视的文件数量
     static size_t getWatchedFileCount() {
         return watch_descriptors.size();
     }
     
-    // 检查是否已初始化
     static bool isInitialized() {
         return inotify_fd >= 0 && !watch_descriptors.empty();
     }
 
 private:
-    // 清除所有待处理的事件 - 修复版本
+
     static bool clearEvents() {
         const size_t buffer_size = 1024;
         char buffer[buffer_size];
@@ -157,17 +153,14 @@ private:
         ssize_t total_read = 0;
         ssize_t length;
         
-        // 使用非阻塞读取，读取所有可用事件
-        while ((length = read(inotify_fd, buffer, buffer_size)) > 0) {
+        while ((length = read(inotify_fd, buffer, buffer_size)) > 0) {  //清理事件
             total_read += length;
             
-            // 处理事件缓冲区
             char* ptr = buffer;
             while (ptr < buffer + length) {
                 struct inotify_event* event = reinterpret_cast<struct inotify_event*>(ptr);
                 
-                // 记录事件信息（调试用）
-                if (event->mask & IN_MODIFY) {
+                if (event->mask & IN_MODIFY) {  //调试用
                     LOGD("File modification event detected for watch descriptor: %d", event->wd);
                 }
                 
@@ -177,7 +170,6 @@ private:
         
         if (length < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                // 没有更多数据可读，这是正常情况
                 LOGD("Cleared %zd bytes of inotify events (%zu events approx)", 
                      total_read, total_read / (sizeof(struct inotify_event) + 16));
                 return true;
