@@ -1,0 +1,43 @@
+# 构建目录
+build/
+dist/
+*.build/
+*.dist/
+
+# 依赖目录
+node_modules/
+webui/node_modules/
+
+# 编译文件
+*.o
+*.a
+*.so
+*.dll
+*.exe
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 日志文件
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 环境变量文件
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

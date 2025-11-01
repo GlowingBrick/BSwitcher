@@ -1,0 +1,1 @@
+let i=0;function f(e){return`${e}_callback_${Date.now()}_${i++}`}function k(e,t){return typeof t>"u"&&(t={}),new Promise((u,r)=>{const c=f("exec");window[c]=(n,l,o)=>{u({errno:n,stdout:l,stderr:o}),a(c)};function a(n){delete window[n]}try{ksu.exec(e,JSON.stringify(t),c)}catch(n){r(n),a(c)}})}function w(e){ksu.toast(e)}export{k as exec,w as toast};

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BSwitcher</title>
+    <link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>BSwitcher</h1>
+        </header>
+        
+    <!-- 在应用规则列表的section后面添加配置入口 -->
+    <div class="section">
+        <div class="section-header">
+            <h2>系统信息与配置</h2>
+            <button id="showConfigBtn" class="btn btn-secondary">系统配置</button>
+        </div>
+        <div id="systemInfo" class="system-info">
+            <!-- 系统信息将通过JS动态生成 -->
+        </div>
+    </div>
+
+        <!-- 默认模式设置 -->
+        <div class="section">
+            <h2>默认模式</h2>
+            <div class="default-mode">
+                <label for="defaultMode">选择默认模式:</label>
+                <select id="defaultMode">
+                    <!-- 模式选项将通过JS动态加载 -->
+                </select>
+            </div>
+        </div>
+
+        <!-- 应用规则列表 -->
+        <div class="section">
+            <div class="section-header">
+                <h2>应用规则</h2>
+                <button id="addRuleBtn" class="btn btn-primary">+ 添加规则</button>
+            </div>
+            <div id="rulesList" class="rules-list">
+                <!-- 规则列表将通过JS动态生成 -->
+            </div>
+        </div>
+    </div> <!-- 关闭 container -->
+
+
+
+    <!-- 配置模态框 -->
+    <div id="configModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>系统配置</h3>
+                <span class="close-config">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="configForm" class="config-form">
+                    <!-- 配置表单将通过JS动态生成 -->
+                </div>
+                <div class="form-actions">
+                    <button id="cancelConfigBtn" class="btn btn-secondary">取消</button>
+                    <button id="saveConfigBtn" class="btn btn-primary">保存配置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加规则的模态框 - 移到body的最后，不在container内 -->
+    <div id="addRuleModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>添加应用规则</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- 搜索框 -->
+                <div class="form-group">
+                    <label for="appSearch">搜索应用:</label>
+                    <input type="text" id="appSearch" placeholder="输入应用名称或包名进行搜索..." class="search-input">
+                </div>
+
+                <!-- 应用选择区域 -->
+                <div class="form-group">
+                    <div class="form-group-header">
+                        <label for="appSelect">选择应用:</label>
+                        <button id="refreshAppListBtn" class="btn btn-secondary btn-small" type="button">
+                            🔄 刷新列表
+                        </button>
+                    </div>
+                    <select id="appSelect">
+                        <!-- 应用选项将通过JS动态加载 -->
+                    </select>
+                    <div id="appCount" class="app-count">共加载 0 个应用</div>
+                </div>
+
+                <!-- 模式选择 -->
+                <div class="form-group">
+                    <label for="modeSelect">选择模式:</label>
+                    <select id="modeSelect">
+                        <!-- 模式选项将通过JS动态加载 -->
+                    </select>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="form-actions">
+                    <button id="cancelBtn" class="btn btn-secondary">取消</button>
+                    <button id="saveRuleBtn" class="btn btn-primary">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>

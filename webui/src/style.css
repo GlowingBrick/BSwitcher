@@ -1,0 +1,494 @@
+/* ===== 重置与基础样式 ===== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+    line-height: 1.6;
+}
+
+/* ===== 布局容器 ===== */
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* ===== 页眉样式 ===== */
+header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+header h1 {
+    color: #2c3e50;
+    font-size: 2.5rem;
+}
+
+/* ===== 区域卡片样式 ===== */
+.section {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.section-header h2 {
+    color: #34495e;
+    font-size: 1.5rem;
+}
+
+/* ===== 默认模式设置 ===== */
+.default-mode {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.default-mode label {
+    font-weight: 600;
+}
+
+/* ===== 表单样式 ===== */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: #555;
+}
+
+.form-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.form-group-header label {
+    margin-bottom: 0;
+}
+
+/* ===== 输入控件样式 ===== */
+select, 
+input[type="text"],
+input[type="number"],
+.btn {
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+select {
+    width: 100%;
+    background: #fff;
+}
+
+#appSelect {
+    width: 100%;
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    background: #fff;
+    height: auto;
+    appearance: menulist;
+}
+
+#appSelect option {
+    padding: 8px;
+    border-bottom: none;
+}
+
+#appSelect option:hover {
+    background-color: #3498db;
+    color: #fff;
+}
+
+#appSelect option:disabled {
+    color: #bdc3c7;
+    background-color: #ecf0f1;
+    cursor: not-allowed;
+}
+
+#appSelect option:checked {
+    background-color: #3498db;
+    color: #fff;
+}
+
+.search-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+/* ===== 按钮样式 ===== */
+.btn {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    font-weight: 600;
+}
+
+.btn-primary {
+    background-color: #3498db;
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background-color: #2980b9;
+}
+
+.btn-secondary {
+    background-color: #95a5a6;
+    color: #fff;
+}
+
+.btn-secondary:hover {
+    background-color: #7f8c8d;
+}
+
+.btn-danger {
+    background-color: #e74c3c;
+    color: #fff;
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
+.btn-danger:hover {
+    background-color: #c0392b;
+}
+
+.btn-warning {
+    background-color: #f39c12;
+    color: #fff;
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.btn-warning:hover {
+    background-color: #e67e22;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.btn-loading {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.btn-loading:after {
+    content: " ⏳";
+}
+
+.btn-success {
+    background-color: #27ae60;
+}
+
+.btn-success:after {
+    content: " ✓";
+}
+
+.btn-error {
+    background-color: #e74c3c;
+}
+
+.btn-error:after {
+    content: " ✗";
+}
+
+/* ===== 规则列表样式 ===== */
+.rules-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.rule-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 4px solid #3498db;
+    gap: 15px;
+}
+
+.rule-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.rule-name {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rule-details {
+    color: #7f8c8d;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rule-actions {
+    flex-shrink: 0;
+    width: 80px;
+}
+
+.delete-rule {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+/* ===== 模态框样式 ===== */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background-color: #fff;
+    margin: 5% auto;
+    padding: 0;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    0% {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.close {
+    font-size: 24px;
+    cursor: pointer;
+    color: #7f8c8d;
+}
+
+.close:hover {
+    color: #34495e;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+/* ===== 配置表单样式 ===== */
+.config-form {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+.config-group {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 3px solid #3498db;
+}
+
+.config-group h4 {
+    margin: 0 0 10px;
+    color: #2c3e50;
+    font-size: 1.1rem;
+}
+
+.config-item {
+    margin-bottom: 15px;
+}
+
+.config-item:last-child {
+    margin-bottom: 0;
+}
+
+.config-item label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: #555;
+}
+
+.config-item input[type="text"],
+.config-item input[type="number"],
+.config-item select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.config-item input:focus,
+.config-item select:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.config-item input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.config-description {
+    font-size: 12px;
+    color: #7f8c8d;
+    margin-top: 4px;
+    font-style: italic;
+}
+
+.config-item.disabled {
+    opacity: 0.6;
+}
+
+.config-item.disabled input,
+.config-item.disabled select {
+    background-color: #ecf0f1;
+    cursor: not-allowed;
+}
+
+/* ===== 系统信息样式 ===== */
+.system-info {
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 4px solid #3498db;
+}
+
+.app-name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 5px;
+}
+
+.app-meta {
+    color: #7f8c8d;
+    font-size: 0.9rem;
+}
+
+.app-meta div {
+    margin-bottom: 2px;
+}
+
+.app-count {
+    font-size: 12px;
+    color: #7f8c8d;
+    margin-top: 5px;
+    text-align: right;
+}
+
+/* ===== 空状态样式 ===== */
+.empty-state {
+    text-align: center;
+    color: #7f8c8d;
+    padding: 40px;
+    font-style: italic;
+}
+
+.no-results {
+    color: #7f8c8d;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+}
+
+/* ===== 响应式设计 ===== */
+@media (max-width: 768px) {
+    .rule-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .rule-actions {
+        width: 100%;
+        display: flex;
+        justify-content: flex-end;
+    }
+    
+    .delete-rule {
+        width: auto;
+        min-width: 80px;
+    }
+}
+
+/* 模态框中的规则项特殊样式 */
+.modal .rule-item {
+    margin-bottom: 10px;
+}
