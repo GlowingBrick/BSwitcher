@@ -30,16 +30,15 @@ private:
     int current_fd_ = -1;
     int voltage_fd_ = -1;
     int status_fd_ = -1;
-    
+
     // 线程控制
     std::atomic<bool> running_{false};
     std::thread worker_thread_;
     std::mutex control_mutex_;
     std::condition_variable cv_;
     
-    std::atomic<std::string*> current_app_ptr_{nullptr};
-    std::atomic<bool> screen_on_{true};
-    std::string current_app_storage_;
+    std::string* current_app_ptr_;
+    bool screen_on_;
 
     // 初始化传感器
     bool init_power_sensors() {
@@ -74,7 +73,7 @@ private:
             return;
         }
 
-        char battery_status;
+        char battery_status=0;
         float power_w;
         float delta_t;
         
@@ -95,20 +94,14 @@ private:
                 }
             }
 
+            std::string app_name = *current_app_ptr_;
 
-            std::string app_name;
-            bool screen_status;
-            getCurrentState(app_name, screen_status);  
-
-            if(!screen_status || app_name.empty()){ //空白、熄屏时不统计
+            if((!screen_on_) || app_name.empty()){     //熄屏时不统计
                 clock_gettime(CLOCK_MONOTONIC, &last_time);
                 continue;
             }
 
-            if (pread(status_fd_, &battery_status, 1, 0) <= 0) {
-                clock_gettime(CLOCK_MONOTONIC, &last_time); //跳过时重置时间
-                continue;
-            }
+            pread(status_fd_, &battery_status, 1, 0);
 
             if (battery_status == 'C') {    //充电时不统计
                 clock_gettime(CLOCK_MONOTONIC, &last_time);
@@ -131,6 +124,7 @@ private:
                 AppPower& stats = app_power_map_[app_name];
                 stats.time_sec += delta_t;
                 stats.power_joules += power_w * delta_t;
+                trim_and_merge_app_power();
             }
         }
 
@@ -148,10 +142,51 @@ private:
         }
     }
 
+    void trim_and_merge_app_power() {   //数据剪裁
+        if (app_power_map_.size() <= 30) {
+            return;
+        }
+
+        AppPower other_stats{0.0f, 0.0f};
+        std::vector<std::pair<std::string, AppPower>> normal_apps;
+        
+        for (const auto& [name, stats] : app_power_map_) {
+            if (name == "_other_") {
+                other_stats.time_sec += stats.time_sec;
+                other_stats.power_joules += stats.power_joules;
+            } else {
+                normal_apps.emplace_back(name, stats);
+            }
+        }
+
+        if (normal_apps.size() <= 20) {
+            app_power_map_["_other_"] = other_stats;
+            return;
+        }
+
+        std::sort(normal_apps.begin(), normal_apps.end(),   //按功耗排序
+            [](const auto& a, const auto& b) {
+                return a.second.power_joules > b.second.power_joules;
+            });
+
+        app_power_map_.clear();
+
+        for (size_t i = 0; i < 20; i++) {   //保留前20
+            app_power_map_[normal_apps[i].first] = normal_apps[i].second;
+        }
+
+        for (size_t i = 20; i < normal_apps.size(); i++) {  //在_other_中存储其余数据
+            other_stats.time_sec += normal_apps[i].second.time_sec;
+            other_stats.power_joules += normal_apps[i].second.power_joules;
+        }
+
+        app_power_map_["_other_"] = other_stats;
+    }
+
 public:
-    PowerMonitorTarget() {
-        current_app_storage_ = "";
-        current_app_ptr_.store(&current_app_storage_, std::memory_order_release);
+    PowerMonitorTarget(std::string* current_app_ptr) {
+        current_app_ptr_=current_app_ptr;   //放弃线程安全，反正不会有致命错误
+        screen_on_ = false;
     }
     
     ~PowerMonitorTarget() {
@@ -164,7 +199,7 @@ public:
     
     nlohmann::json read() const override {
         std::lock_guard<std::mutex> lock(data_mutex_);
-        
+
         nlohmann::json result = nlohmann::json::array();
         
         for (const auto& [name, stats] : app_power_map_) {
@@ -210,25 +245,11 @@ public:
             worker_thread_.join();
         }
     }
-    
-    void setForegroundApp(const std::string& app_name) {
-        current_app_storage_ = app_name;
-        current_app_ptr_.store(&current_app_storage_, std::memory_order_release);
-    }
-    
+
     void setScreenStatus(bool screen_on) {
-        if (screen_on == screen_on_.load(std::memory_order_relaxed)) {
-            return;
-        }
-        screen_on_.store(screen_on, std::memory_order_release);
+        screen_on_=screen_on;
     }
 
-    void getCurrentState(std::string& app_name, bool& screen_status) const {
-        std::string* app_ptr = current_app_ptr_.load(std::memory_order_acquire);
-        app_name = app_ptr ? *app_ptr : "";
-        screen_status = screen_on_.load(std::memory_order_acquire);
-    }
-    
     bool isRunning() const {
         return running_.load(std::memory_order_relaxed);
     }

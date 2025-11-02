@@ -84,7 +84,7 @@ public:
         }
         
         int result = select(inotify_fd + 1, &read_fds, nullptr, nullptr, timeout_ptr);  //不出意外会在这里阻塞
-        
+
         if (result < 0) {
             if (errno == EINTR) {
                 LOGD("select() interrupted by signal");
@@ -98,6 +98,7 @@ public:
         }
         
         if (FD_ISSET(inotify_fd, &read_fds)) {  
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));  //等待5ms,确保同时触发的事件到齐
             if (clearEvents()) {    //清理
                 LOGD("File modification detected and events cleared");
                 return true;

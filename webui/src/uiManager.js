@@ -346,7 +346,10 @@ export class UIManager {
 
     // 处理功耗数据
     processPowerData(powerData) {
-        return powerData
+        // 先过滤掉 _other_ 条目，用于排名显示
+        const filteredData = powerData.filter(item => item.name !== '_other_');
+        
+        return filteredData
             .map(item => {
                 const powerJoules = parseFloat(item.power_joules) || 0;
                 const timeSec = parseFloat(item.time_sec) || 0;
@@ -427,7 +430,7 @@ export class UIManager {
         `).join('');
     }
 
-    // 格式化时间（简短版本）
+    // 格式化时间
     formatTimeShort(seconds) {
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
@@ -658,8 +661,8 @@ export class UIManager {
                 <div class="rule-item">
                     <div class="rule-info">
                         <div class="rule-name" title="${appName}">${appName}</div>
-                        <div class="rule-details" title="包名: ${rule.appPackage} | 模式: ${modeName}">
-                            包名: ${rule.appPackage} | 模式: ${modeName}
+                        <div class="rule-details" title="模式: ${modeName} | 包名: ${rule.appPackage}">
+                            模式: ${modeName} | 包名: ${rule.appPackage}
                         </div>
                     </div>
                     <div class="rule-actions">

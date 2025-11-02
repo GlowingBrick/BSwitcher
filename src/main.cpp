@@ -12,6 +12,7 @@ std::string sState = "";
 std::string sEntry = "";
 int sleepDuring = 2;
 bool (*write_mode)(const std::string &);
+std::string currentApp;
 
 int init_service()
 {
@@ -20,7 +21,7 @@ int init_service()
     infoConfigTarget = std::make_shared<InfoConfigTarget>("Custom", "unknow", "0.0.0");
     appListTarget = std::make_shared<ApplistConfigTarget>();
     availableModesTarget = std::make_shared<AvailableModesTarget>();
-    powerMonitorTarget = std::make_shared<PowerMonitorTarget>();
+    powerMonitorTarget = std::make_shared<PowerMonitorTarget>(&currentApp);
 
     const nlohmann::json CONFIG_SCHEMA = {// 这是可配置接口
                                           {{"key", "low_battery_threshold"},
@@ -242,7 +243,7 @@ int getBatteryLevel()
     std::ifstream capacity_file("/sys/class/power_supply/battery/capacity");
     if (!capacity_file)
     {
-        return 0;
+        return 100;
     }
 
     int level = -1;
@@ -284,7 +285,6 @@ int main()
 
     bind_to_core();
 
-    std::string currentApp;
     std::string lastMode = read_current_mode(sState);
     std::string newMode;
 
@@ -343,6 +343,7 @@ int main()
             {
                 newMode = mainConfig.screen_off;
                 timeset=120000;
+                currentApp="";
             }
             else if (getBatteryLevel() < mainConfig.low_battery_threshold)
             {
@@ -356,7 +357,6 @@ int main()
                     if (!schedulerConfig.apps.empty())
                     {
                         currentApp = getForegroundApp();
-                        powerMonitorTarget->setForegroundApp(currentApp);
 
                         LOGD("CurrentAPP: %s", currentApp.c_str());
                         if (!currentApp.empty())
