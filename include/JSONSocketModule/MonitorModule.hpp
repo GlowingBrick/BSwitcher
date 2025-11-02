@@ -30,22 +30,24 @@ private:
     int current_fd_ = -1;
     int voltage_fd_ = -1;
     int status_fd_ = -1;
+    int screen_fd_ = -1;
 
     // 线程控制
     std::atomic<bool> running_{false};
+    std::atomic<bool> stop_{false};
     std::thread worker_thread_;
     std::mutex control_mutex_;
     std::condition_variable cv_;
     
     std::string* current_app_ptr_;
-    bool screen_on_;
+    char screen_status = 0; //放弃线程安全，反正不是重要数据，梭哈
 
     // 初始化传感器
     bool init_power_sensors() {
         current_fd_ = open("/sys/class/power_supply/battery/current_now", O_RDONLY | O_CLOEXEC);
         voltage_fd_ = open("/sys/class/power_supply/battery/voltage_now", O_RDONLY | O_CLOEXEC);
         status_fd_ = open("/sys/class/power_supply/battery/status", O_RDONLY | O_CLOEXEC);
-        return (current_fd_ >= 0) && (voltage_fd_ >= 0) && (status_fd_ >= 0);
+        return (current_fd_ >= 0) && (voltage_fd_ >= 0);    //status不是必须的
     }
 
     // 读取当前功率（瓦特）
@@ -70,24 +72,49 @@ private:
     // 工作线程
     void worker_loop() {
         if (!init_power_sensors()) {
+            LOGE("Unable To Init Power Monitor");
+            if (current_fd_ >= 0) {
+                close(current_fd_);
+                current_fd_ = -1;
+            }
+            if (voltage_fd_ >= 0) {
+                close(voltage_fd_);
+                voltage_fd_ = -1;
+            }
+            if (status_fd_ >= 0) {
+                close(status_fd_);
+                status_fd_ = -1;
+            }
+            running_.store(false);
             return;
         }
 
         char battery_status=0;
         float power_w;
         float delta_t;
-        
+        bool hasstop=false;
+
         timespec current_time;
         timespec last_time;
         clock_gettime(CLOCK_MONOTONIC, &last_time);
 
         while (running_.load(std::memory_order_relaxed)) {
-
+            
             {
                 std::unique_lock<std::mutex> lock(control_mutex_);
-                cv_.wait_for(lock, std::chrono::seconds(1), [this]() {
-                    return !running_.load(std::memory_order_relaxed);
-                });
+
+                if(stop_.load()){   //如果在stop中
+                    LOGD("Screen Off,Power Monitor Stoped");
+                    cv_.wait(lock, [this]() {   //等待
+                         //stop与run任意置false都退出阻塞
+                        return ((!running_.load(std::memory_order_relaxed)) || (!stop_.load(std::memory_order_relaxed)));  
+                    });
+                    LOGD("Screen On,Power Monitor Continue");
+                }else{
+                    cv_.wait_for(lock, std::chrono::seconds(1), [this]() {
+                        return ((!running_.load(std::memory_order_relaxed)));   //只考虑run
+                    });
+                }
                 
                 if (!running_.load(std::memory_order_relaxed)) {
                     break;
@@ -96,7 +123,19 @@ private:
 
             std::string app_name = *current_app_ptr_;
 
-            if((!screen_on_) || app_name.empty()){     //熄屏时不统计
+            pread(screen_fd_, &screen_status, 1, 0);
+            if(screen_status == '0' ){  //熄屏时
+                stop_.store(true, std::memory_order_relaxed);       //准备自我阻塞
+                hasstop=true;
+                continue;
+            }else{
+                if(hasstop==true){  //表明刚才在阻塞
+                    clock_gettime(CLOCK_MONOTONIC, &last_time); //lastime作废
+                    hasstop=false;
+                }
+            }
+
+            if(app_name.empty()){  
                 clock_gettime(CLOCK_MONOTONIC, &last_time);
                 continue;
             }
@@ -186,11 +225,27 @@ private:
 public:
     PowerMonitorTarget(std::string* current_app_ptr) {
         current_app_ptr_=current_app_ptr;   //放弃线程安全，反正不会有致命错误
-        screen_on_ = false;
+        screen_fd_ =  open("/sys/class/backlight/panel0-backlight/brightness", O_RDONLY | O_CLOEXEC);
     }
     
     ~PowerMonitorTarget() {
         stop();
+        if (current_fd_ >= 0) {
+            close(current_fd_);
+            current_fd_ = -1;
+        }
+        if (voltage_fd_ >= 0) {
+            close(voltage_fd_);
+            voltage_fd_ = -1;
+        }
+        if (status_fd_ >= 0) {
+            close(status_fd_);
+            status_fd_ = -1;
+        }
+        if (screen_fd_ >= 0) {
+            close(status_fd_);
+            screen_fd_ = -1;
+        }
     }
 
     std::string getName() const override {
@@ -218,13 +273,14 @@ public:
     }
     
     bool start() {
+        stop_.store(false);
         if (running_.exchange(true)) {
             // 已在运行
             return false;
         }
         
         try {
-            LOGD("Starting Monitor");
+            LOGI("Starting Monitor");
             worker_thread_ = std::thread(&PowerMonitorTarget::worker_loop, this);
             return true;
         } catch (const std::exception& e) {
@@ -240,15 +296,29 @@ public:
         
         // 通知工作线程退出
         cv_.notify_all();
-        LOGD("Stoping Monitor");
+        LOGI("Stoping Monitor");
         if (worker_thread_.joinable()) {
             worker_thread_.join();
         }
     }
 
-    void setScreenStatus(bool screen_on) {
-        screen_on_=screen_on;
+    bool screenstatus(){    //获取屏幕状态
+        bool stopload=stop_.load();
+        bool runload=running_.load();
+
+       if (runload==false || stopload==true ) {   //如果没有运行
+            pread(screen_fd_, &screen_status, 1, 0);    //手动维护一次
+
+            if(stopload==true){
+                if(screen_status!='0'){
+                    stop_.store(false);
+                    cv_.notify_all();   //唤醒
+                }
+            }
+        }
+        return !(screen_status=='0');
     }
+
 
     bool isRunning() const {
         return running_.load(std::memory_order_relaxed);

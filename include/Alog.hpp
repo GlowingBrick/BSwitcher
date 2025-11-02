@@ -2,7 +2,7 @@
 #ifndef __ALOG__
 #define __ALOG__
 
-#define LOG_TAG "A S V"
+#define LOG_TAG "BSwitcher"
 #include <iostream>
 #if !defined(__ANDROID__) || defined(PRINTLOG)
     #include <stdio.h>

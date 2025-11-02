@@ -40,26 +40,25 @@ public:
                 continue;
             }
             
-            LOGD("Successfully watching file: %s with watch descriptor: %d", file_path.c_str(), wd);
+            LOGD("Successfully registered inotify for: %s with watch descriptor: %d", file_path.c_str(), wd);
             watch_descriptors.push_back(wd);
             at_least_one_valid = true;
         }
         
         if (!at_least_one_valid) {
-            LOGW("No valid files to watch among the provided paths");
+            LOGW("No valid files to watch");
             close(inotify_fd);
             inotify_fd = -1;
             return false;
         }
         
-        LOGI("FileWatcher successfully watching %zu file(s)", watch_descriptors.size());
+        LOGI("Registered inotify for %zu files in total", watch_descriptors.size());
         return true;
     }
     
     static bool wait(int timeout_ms) {    //主要的阻塞函数
         if (inotify_fd < 0) {
-            LOGE("FileWatcher not initialized");
-            return false;
+            return false;   //未启用inotify时会在这里返回
         }
         
         if (watch_descriptors.empty()) {

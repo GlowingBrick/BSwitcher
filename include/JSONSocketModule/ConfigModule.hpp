@@ -55,6 +55,7 @@ public:
         std::string mode_file;
         std::string screen_off;
         bool power_monitoring;
+        bool using_inotify;
     } config;
     
     // 互斥锁 - 公开访问
@@ -68,7 +69,8 @@ private:
         {"scene", true},
         {"mode_file", ""},
         {"screen_off", "powersave"},
-        {"power_monitoring", true}
+        {"power_monitoring", true},
+        {"using_inotify", true}
     };
     
     void loadFromFile() {
@@ -91,6 +93,7 @@ private:
                 config.mode_file = fileData.value("mode_file", DEFAULT_CONFIG["mode_file"]);
                 config.screen_off = fileData.value("screen_off", DEFAULT_CONFIG["screen_off"]);
                 config.power_monitoring = fileData.value("power_monitoring", DEFAULT_CONFIG["power_monitoring"]);
+                config.using_inotify = fileData.value("using_inotify", DEFAULT_CONFIG["using_inotify"]);
             } else {
                 // 文件不存在或无效，使用默认值
                 config.poll_interval = DEFAULT_CONFIG["poll_interval"];
@@ -99,6 +102,7 @@ private:
                 config.mode_file = DEFAULT_CONFIG["mode_file"];
                 config.screen_off = DEFAULT_CONFIG["screen_off"];
                 config.power_monitoring = DEFAULT_CONFIG["power_monitoring"];
+                config.using_inotify = DEFAULT_CONFIG["config.using_inotify ="];
             }
             modify=true;
         }
@@ -119,6 +123,7 @@ private:
             fileData["mode_file"] = config.mode_file;
             fileData["screen_off"] = config.screen_off;
             fileData["power_monitoring"] = config.power_monitoring;
+            fileData["using_inotify"] = config.using_inotify;
         }
         return FileConfigTarget::write(fileData);
     }
@@ -141,6 +146,7 @@ public:
         result["mode_file"] = config.mode_file;
         result["screen_off"] = config.screen_off;
         result["power_monitoring"] = config.power_monitoring;
+        result["using_inotify"] = config.using_inotify;
         return result;
     }
     
@@ -164,6 +170,9 @@ public:
             }
             if (data.contains("power_monitoring")) {
                 config.power_monitoring = data["power_monitoring"];
+            }
+            if (data.contains("using_inotify")) {
+                config.using_inotify = data["using_inotify"];
             }
         }
         modify=true;

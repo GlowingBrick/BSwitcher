@@ -13,7 +13,6 @@ std::string sEntry = "";
 int sleepDuring = 2;
 bool (*write_mode)(const std::string &);
 std::string currentApp;
-
 int init_service()
 {
     mainConfigTarget = std::make_shared<MainConfigTarget>(); // 配置初始化
@@ -38,6 +37,11 @@ int init_service()
                                            {"min", 1},
                                            {"max", 60},
                                            {"category", "基本设置"}},
+                                          {{"key", "using_inotify"},
+                                           {"type", "checkbox"},
+                                           {"label", "使用inotify"},
+                                           {"description", "使用inotify监听系统事件(重启生效)"},
+                                           {"category", "基本设置"}},
                                           {{"key", "power_monitoring"},
                                            {"type", "checkbox"},
                                            {"label", "能耗监控"},
@@ -52,7 +56,7 @@ int init_service()
                                           {{"key", "mode_file"},
                                            {"type", "text"},
                                            {"label", "模式文件路径"},
-                                           {"description", "手动指定模式配置文件路径（仅在场景模式禁用时有效）"},
+                                           {"description", "手动指定模式配置文件路径"},
                                            {"category", "模式设置"},
                                            {"dependsOn", {{"field", "scene"}, {"condition", false}}}},
                                           {{"key", "screen_off"},
@@ -128,6 +132,16 @@ int load_config()
     {
         powerMonitorTarget->stop();
     }
+
+    if (mainConfigTarget->config.poll_interval <= 1)
+    {
+        sleepDuring = -1;
+    }
+    else
+    {
+        sleepDuring = mainConfigTarget->config.poll_interval - 1; // 定义时间间隔
+    }
+
 
     write_mode = dummy_write_mode;              // 防段错误
     sleepDuring = 2;
@@ -211,14 +225,6 @@ int load_config()
         }
     }
     write_mode = (mainConfigTarget->config.scene) ? scene_write_mode : unscene_write_mode; // 定义写入函数
-    if (mainConfigTarget->config.poll_interval <= 1)
-    {
-        sleepDuring = -1;
-    }
-    else
-    {
-        sleepDuring = mainConfigTarget->config.poll_interval - 1; // 定义时间间隔
-    }
 
     return 0;
 }
@@ -226,30 +232,31 @@ int load_config()
 bool ScreenState()
 {
     // 检查背光亮度
-    std::ifstream brightness_file("/sys/class/backlight/panel0-backlight/brightness");
-    if (brightness_file)
-    {
-        int brightness = 0;
-        brightness_file >> brightness;
-        bool state = (brightness > 0);
-        powerMonitorTarget->setScreenStatus(state);
-        return state;
-    }
-    return true;
+    return powerMonitorTarget->screenstatus();;
 }
 
-int getBatteryLevel()
-{
-    std::ifstream capacity_file("/sys/class/power_supply/battery/capacity");
-    if (!capacity_file)
-    {
-        return 100;
+int getBatteryLevel() {
+    static int battery_fd = []() {
+        int fd = open("/sys/class/power_supply/battery/capacity", O_RDONLY | O_CLOEXEC);
+        return (fd >= 0) ? fd : -1;
+    }();
+    
+    if (battery_fd < 0) {
+        return 100;  
     }
+    
+    char buf[5] = {0};
+    ssize_t bytes_read = pread(battery_fd, buf, sizeof(buf)-1, 0);
+    
+    if (bytes_read <= 0) {
+        return 100; 
+    }
+    
+    buf[bytes_read] = '\0';
 
-    int level = -1;
-    capacity_file >> level;
-
-    return level;
+    int btl=atoi(buf);
+    LOGD("BatteryLevel: %d",btl);
+    return btl;
 }
 
 void bind_to_core()
@@ -285,11 +292,28 @@ int main()
 
     bind_to_core();
 
+
+
     std::string lastMode = read_current_mode(sState);
     std::string newMode;
 
-    std::vector<std::string> files_to_watch = {"/dev/cpuset/top-app/cgroup.procs", "/dev/cpuset/top-app/tasks"};
-    FileWatcher::initialize(files_to_watch);
+    bool usinotify = true;
+    {
+        std::unique_lock<std::mutex> lock(mainConfigTarget->configMutex);
+        usinotify=mainConfigTarget->config.using_inotify;
+    }
+
+    if(usinotify)
+    {
+        std::vector<std::string> files_to_watch = {
+            "/dev/cpuset/top-app/cgroup.procs",     //前台变化时响应
+            "/dev/cpuset/top-app/tasks",
+            "/dev/cpuset/restricted/cgroup.procs",  //熄屏时响应
+            "/dev/cpuset/restricted/tasks"
+        };
+        FileWatcher::initialize(files_to_watch);
+    }
+
 
     // 预先提取对象，提升效率
     auto &mainModify = mainConfigTarget->modify;
@@ -299,7 +323,7 @@ int main()
     auto &schedulerMutex = schedulerConfigTarget->configMutex;
     auto &schedulerConfig = schedulerConfigTarget->config;
 
-    int timeset=30;
+    int timeset=10000;
 
     LOGD("Enter main loop");
     while (1) // 主循环
@@ -338,12 +362,13 @@ int main()
         {
             std::unique_lock<std::mutex> lock(mainMutex);
 
-            timeset=30000;
+            timeset=40000;
             if (!ScreenState())
             {
                 newMode = mainConfig.screen_off;
                 timeset=120000;
                 currentApp="";
+                LOGD("Found screen off,Increase sleep time");
             }
             else if (getBatteryLevel() < mainConfig.low_battery_threshold)
             {
@@ -376,7 +401,7 @@ int main()
             }
         }
 
-        if (lastMode != newMode)
+        if (lastMode != newMode)    //有变化时再写入
         {
             write_mode(newMode);
             lastMode = newMode;
@@ -384,6 +409,9 @@ int main()
         }
     }
 
-    JSONSocket::stop(); // 一般运行不到这
+    powerMonitorTarget->stop(); // 应该运行不到这
+    JSONSocket::stop(); 
+    LOGE("Main function abnormal exit");
+    exit(-1);
     return 0;
 }
