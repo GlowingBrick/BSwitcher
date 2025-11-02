@@ -3,7 +3,7 @@
  * Developed by BCK with assistance from DeepSeek.
 *****************************************/
 #include<ForegroundApp.hpp>
-/*  好用但可能不可靠的神奇手动算法
+
 signed char g_displayPolicyIndent = -1;
 signed char g_mTopFullscreenIndent = -1;
 
@@ -34,12 +34,12 @@ void initIndentationConfig() {  //启动时预先统计标签前置空格，以�
     if (g_displayPolicyIndent < 0) g_displayPolicyIndent = 2;
     if (g_mTopFullscreenIndent < 0) g_mTopFullscreenIndent = 4;
     
-    LOGI("Detected indentation: DisplayPolicy=%d, mTopFullscreen=%d", 
+    LOGD("Detected indentation: DisplayPolicy=%d, mTopFullscreen=%d", 
          g_displayPolicyIndent, g_mTopFullscreenIndent);
 }
 
 
-std::string getForegroundApp() {
+std::string getForegroundApp() {        //手动筛选，理论上能跑
     if(unlikely(g_displayPolicyIndent<0)){
         initIndentationConfig();
     }
@@ -83,7 +83,6 @@ std::string getForegroundApp() {
                             startPos++;
                         }
                         
-                        
                         if (startPos < slashPos) {
                             result = line.substr(startPos, slashPos - startPos);
                         }
@@ -97,16 +96,11 @@ std::string getForegroundApp() {
     
     pclose(pipe);
     
-    if (!result.empty()) {
-    } else {
-        LOGW("[Foreground App Detection] No foreground app detected (Raw output: %s)", buffer);
-    }
-    
     return result;
 }
-*/
 
 
+/* 
 
 std::string getForegroundApp() {
     std::string packageName;
@@ -117,7 +111,7 @@ std::string getForegroundApp() {
     }
     
     char buffer[256];
-    packageName="none";
+    packageName="";
     if (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
         std::string line(buffer);
         
@@ -140,4 +134,4 @@ std::string getForegroundApp() {
     
     pclose(pipe);
     return packageName;
-}
+}*/

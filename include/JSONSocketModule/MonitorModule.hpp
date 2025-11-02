@@ -100,12 +100,17 @@ private:
             bool screen_status;
             getCurrentState(app_name, screen_status);  
 
+            if(!screen_status || app_name.empty()){ //空白、熄屏时不统计
+                clock_gettime(CLOCK_MONOTONIC, &last_time);
+                continue;
+            }
+
             if (pread(status_fd_, &battery_status, 1, 0) <= 0) {
                 clock_gettime(CLOCK_MONOTONIC, &last_time); //跳过时重置时间
                 continue;
             }
 
-            if (battery_status == 'C' || !screen_status || app_name.empty() || app_name == "none") {    //熄屏、空白、充电时不统计
+            if (battery_status == 'C') {    //充电时不统计
                 clock_gettime(CLOCK_MONOTONIC, &last_time);
                 continue;
             }
@@ -116,7 +121,6 @@ private:
                 continue;
             }
 
-            // 计算时间差
             clock_gettime(CLOCK_MONOTONIC, &current_time);
             delta_t = static_cast<float>(current_time.tv_sec - last_time.tv_sec) +
                      static_cast<float>(static_cast<double>(current_time.tv_nsec - last_time.tv_nsec) * 1e-9);  //计算时间间隔
@@ -158,7 +162,6 @@ public:
         return "powerdata";
     }
     
-    // 读取配置 - 返回功耗统计数据
     nlohmann::json read() const override {
         std::lock_guard<std::mutex> lock(data_mutex_);
         
@@ -175,15 +178,13 @@ public:
         return result;
     }
     
-    // 写入配置 - 只读，返回错误
     nlohmann::json write(const nlohmann::json& data) override {
         return {{"status", "error"}, {"message", "Power monitor target is read-only"}};
     }
     
-    // 启动监控线程
     bool start() {
         if (running_.exchange(true)) {
-            // 已经在运行
+            // 已在运行
             return false;
         }
         
@@ -197,10 +198,9 @@ public:
         }
     }
     
-    // 停止监控线程
     void stop() {
         if (!running_.exchange(false)) {
-            return; // 已经停止
+            return; // 已停止
         }
         
         // 通知工作线程退出
@@ -211,13 +211,11 @@ public:
         }
     }
     
-    // 设置当前前台应用
     void setForegroundApp(const std::string& app_name) {
         current_app_storage_ = app_name;
         current_app_ptr_.store(&current_app_storage_, std::memory_order_release);
     }
     
-    // 设置屏幕状态
     void setScreenStatus(bool screen_on) {
         if (screen_on == screen_on_.load(std::memory_order_relaxed)) {
             return;
@@ -231,12 +229,10 @@ public:
         screen_status = screen_on_.load(std::memory_order_acquire);
     }
     
-    // 检查是否正在运行
     bool isRunning() const {
         return running_.load(std::memory_order_relaxed);
     }
     
-    // 清空统计数据
     void clearStats() {
         std::lock_guard<std::mutex> lock(data_mutex_);
         app_power_map_.clear();

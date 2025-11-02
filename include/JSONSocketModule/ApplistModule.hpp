@@ -209,22 +209,21 @@ private:
         
         std::istringstream aaptStream(aaptOutput);
         std::string line;
-        
+        std::string enpackname="";
         while (std::getline(aaptStream, line)) {
-            if (line.find("application-label:") != std::string::npos) {
-                size_t start = line.find("application-label:") + 18;
+            if (line.find("application-label-zh:") != std::string::npos) {
+                size_t start = line.find("application-label-zh:") + 21;
                 std::string label = line.substr(start);
                 return cleanAppLabel(label);
             }
-            
-            if (line.find("application-label-zh") != std::string::npos) {
-                size_t start = line.find(":") + 1;
-                std::string label = line.substr(start);
-                return cleanAppLabel(label);
+
+            if (line.find("application-label:") != std::string::npos) {
+                size_t start = line.find("application-label:") + 18;
+                enpackname = line.substr(start);
             }
         }
         
-        return "";
+        return cleanAppLabel(enpackname);
     }
     
     // 清理应用标签

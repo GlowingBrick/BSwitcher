@@ -15,12 +15,10 @@ class FileWatcher {
 private:
     static int inotify_fd;
     static std::vector<int> watch_descriptors;
-    static int timeout_ms;
 
 public:
     // 初始化inotify实例
-    static bool initialize(const std::vector<std::string>& file_paths, int timeout_ms_param) {
-        timeout_ms = timeout_ms_param;
+    static bool initialize(const std::vector<std::string>& file_paths) {
         
         if (inotify_fd >= 0) {
             cleanup();
@@ -32,7 +30,6 @@ public:
             return false;
         }
         
-        LOGI("FileWatcher initialized with timeout: %d ms", timeout_ms);
         
         bool at_least_one_valid = false;
         
@@ -59,7 +56,7 @@ public:
         return true;
     }
     
-    static bool wait() {    //主要的阻塞函数
+    static bool wait(int timeout_ms) {    //主要的阻塞函数
         if (inotify_fd < 0) {
             LOGE("FileWatcher not initialized");
             return false;
@@ -97,11 +94,11 @@ public:
             return false;
         } else if (result == 0) {
             LOGD("Wait timeout reached");
-            return true; // 超时是正常情况
+            return true;
         }
         
-        if (FD_ISSET(inotify_fd, &read_fds)) {
-            if (clearEvents()) {
+        if (FD_ISSET(inotify_fd, &read_fds)) {  
+            if (clearEvents()) {    //清理
                 LOGD("File modification detected and events cleared");
                 return true;
             } else {
@@ -187,4 +184,3 @@ private:
 // 静态成员初始化
 int FileWatcher::inotify_fd = -1;
 std::vector<int> FileWatcher::watch_descriptors;
-int FileWatcher::timeout_ms = -1;

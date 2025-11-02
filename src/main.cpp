@@ -32,15 +32,15 @@ int init_service()
                                            {"category", "电源管理"}},
                                           {{"key", "poll_interval"},
                                            {"type", "number"},
-                                           {"label", "轮询间隔"},
-                                           {"description", "检查应用状态的时间间隔（秒）"},
+                                           {"label", "最小轮询间隔"},
+                                           {"description", "检查应用状态的最小时间间隔（秒）"},
                                            {"min", 1},
                                            {"max", 60},
                                            {"category", "基本设置"}},
                                           {{"key", "power_monitoring"},
                                            {"type", "checkbox"},
-                                           {"label", "电源监控"},
-                                           {"description", "是否监控电源状态变化"},
+                                           {"label", "能耗监控"},
+                                           {"description", "记录能耗信息"},
                                            {"category", "电源管理"}},
                                           {{"key", "scene"},
                                            {"type", "checkbox"},
@@ -119,7 +119,17 @@ int load_config()
 {
     std::unique_lock<std::mutex> lock(mainConfigTarget->configMutex);   //获取锁
 
+    if(mainConfigTarget->config.power_monitoring)   //是否启用功耗监控
+    {
+        powerMonitorTarget->start();
+    }
+    else
+    {
+        powerMonitorTarget->stop();
+    }
+
     write_mode = dummy_write_mode;              // 防段错误
+    sleepDuring = 2;
     if (mainConfigTarget->config.scene == true) // scene模式启用时，加载/data/powercfg.json
     {
         std::ifstream powercfgfile("/data/powercfg.json");
@@ -182,15 +192,6 @@ int load_config()
             mainConfigTarget->config.scene = false;
         }
         powercfgfile.close();
-    }
-
-    if(mainConfigTarget->config.power_monitoring)   //是否启用功耗监控
-    {
-        powerMonitorTarget->start();
-    }
-    else
-    {
-        powerMonitorTarget->stop();
     }
 
     if (mainConfigTarget->config.scene != true)
@@ -288,7 +289,7 @@ int main()
     std::string newMode;
 
     std::vector<std::string> files_to_watch = {"/dev/cpuset/top-app/cgroup.procs", "/dev/cpuset/top-app/tasks"};
-    FileWatcher::initialize(files_to_watch, 30000);
+    FileWatcher::initialize(files_to_watch);
 
     // 预先提取对象，提升效率
     auto &mainModify = mainConfigTarget->modify;
@@ -297,6 +298,8 @@ int main()
 
     auto &schedulerMutex = schedulerConfigTarget->configMutex;
     auto &schedulerConfig = schedulerConfigTarget->config;
+
+    int timeset=30;
 
     LOGD("Enter main loop");
     while (1) // 主循环
@@ -307,7 +310,7 @@ int main()
             {
                 while (1)
                 { // 无效数据，重试
-                    sleep(5);
+                    sleep(10);
                     if (mainModify == true)
                     {
                         if (load_config() == 0)
@@ -329,20 +332,21 @@ int main()
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
-        FileWatcher::wait(); // 阻塞等待cgroup
+        FileWatcher::wait(timeset); // 阻塞等待cgroup变化
         sleep(1);            // 等1秒防抖，避免出现none
 
         {
             std::unique_lock<std::mutex> lock(mainMutex);
 
-
-            if (getBatteryLevel() < mainConfig.low_battery_threshold)
-            {
-                newMode = "powersave";
-            }
-            else if (!ScreenState())
+            timeset=30000;
+            if (!ScreenState())
             {
                 newMode = mainConfig.screen_off;
+                timeset=120000;
+            }
+            else if (getBatteryLevel() < mainConfig.low_battery_threshold)
+            {
+                newMode = "powersave";
             }
             else
             {
@@ -356,8 +360,8 @@ int main()
 
                         LOGD("CurrentAPP: %s", currentApp.c_str());
                         if (!currentApp.empty())
-                        { // 如果currentApp不为空
-                            for (const auto &app : schedulerConfig.apps)
+                        { 
+                            for (const auto &app : schedulerConfig.apps)    //匹配应用列表
                             { // 遍历app列表
                                 if (app.pkgName == currentApp)
                                 {
