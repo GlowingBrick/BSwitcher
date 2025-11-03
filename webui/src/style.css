@@ -771,3 +771,147 @@ input[type="number"]:focus {
     font-size: 1.4rem;
   }
 }
+
+/* 日志容器样式 */
+.logs-container {
+    max-height: 600px; /* 增加高度 */
+    overflow: auto;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+}
+
+.logs-content {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 11px; /* 更小的字体 */
+    line-height: 1.3;
+    color: var(--text-primary);
+    white-space: pre; /* 不换行 */
+    word-wrap: normal; /* 不换行 */
+    word-break: keep-all; /* 保持单词完整 */
+    margin: 0;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    min-width: min-content; /* 确保内容不被压缩 */
+}
+
+#logsModal .modal-content {
+    max-width: 95%; /* 更宽的窗口 */
+    width: 95%;
+    margin: 2% auto; 
+}
+
+/* 水平滚动支持 */
+.logs-content {
+    overflow-x: auto; /* 水平滚动 */
+    overflow-y: auto; /* 垂直滚动 */
+}
+
+/* 自定义滚动条 */
+.logs-content::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.logs-content::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+.logs-content::-webkit-scrollbar-thumb {
+    background: var(--color-gray-500);
+    border-radius: 4px;
+}
+
+.logs-content::-webkit-scrollbar-thumb:hover {
+    background: var(--color-gray-600);
+}
+
+/* Firefox 滚动条 */
+.logs-content {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-gray-500) var(--bg-tertiary);
+}
+
+/* 日志行样式 */
+.log-line {
+    padding: 2px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.log-line:last-child {
+    border-bottom: none;
+}
+
+/* 日志级别颜色 */
+.log-debug {
+    color: var(--color-primary);
+}
+
+.log-info {
+    color: var(--color-success);
+}
+
+.log-warn {
+    color: var(--color-warning);
+}
+
+.log-error {
+    color: var(--color-danger);
+}
+
+/* 日志加载状态 */
+.logs-loading {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-muted);
+    font-style: italic;
+    white-space: normal; /* 加载信息可以换行 */
+}
+
+.logs-error {
+    text-align: center;
+    padding: 40px;
+    color: var(--color-danger);
+    white-space: normal; /* 错误信息可以换行 */
+}
+
+/* 深色模式下的日志样式优化 */
+@media (prefers-color-scheme: dark) {
+    .logs-content {
+        color: var(--color-gray-200);
+    }
+    
+    .log-debug {
+        color: color-mix(in srgb, var(--color-primary) 80%, white);
+    }
+    
+    .log-info {
+        color: color-mix(in srgb, var(--color-success) 80%, white);
+    }
+    
+    .log-warn {
+        color: color-mix(in srgb, var(--color-warning) 80%, white);
+    }
+    
+    .log-error {
+        color: color-mix(in srgb, var(--color-danger) 80%, white);
+    }
+}
+
+@media (max-width: 768px) {
+    #logsModal .modal-content {
+        max-width: 98%;
+        width: 98%;
+        margin: 1% auto;
+    }
+    
+    .logs-content {
+        font-size: 10px; /* 移动端更小的字体 */
+    }
+}

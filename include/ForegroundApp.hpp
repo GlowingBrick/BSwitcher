@@ -5,18 +5,30 @@
 #ifndef __HFAPP__
 #define __HFAPP__
 
-#include <cstring>
-#include <stdio.h>
-#include <sched.h>
-#include <fstream>
 #include "Alog.hpp"
+#include <cstring>
+#include <fstream>
+#include <sched.h>
+#include <stdio.h>
 
-extern signed char g_displayPolicyIndent;
-extern signed char g_mTopFullscreenIndent;
+class TopAppDetector {
+private:
+    signed char g_displayPolicyIndent = -1;
+    signed char g_mTopFullscreenIndent = -1;
 
-#define unlikely(x) __builtin_expect(!!(x), 0)
+    using DetectorFunc = std::string (TopAppDetector::*)();
+    DetectorFunc workingFunction;  //真正工作的函数
 
+    std::string __getForegroundApp_backup();
+    void __initIndentationConfig();
+    std::string __getForegroundApp();
 
-std::string getForegroundApp();
+    std::string __preProcessing();
+
+public:
+    TopAppDetector();
+
+    std::string getForegroundApp();
+};
 
 #endif

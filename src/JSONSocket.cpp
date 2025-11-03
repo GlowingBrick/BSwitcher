@@ -94,8 +94,8 @@ std::string JSONSocket::handleRequest(const nlohmann::json& request) {
             return error_response.dump();
         }
 
-        std::string targetName = request["target"];
-        std::string mode = request["mode"];
+        std::string targetName = request.value("target","");
+        std::string mode = request.value("mode","");
 
         LOGD("Processing request: target=%s, mode=%s", targetName.c_str(), mode.c_str());
 

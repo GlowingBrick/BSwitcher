@@ -54,6 +54,7 @@ public:
         bool scene;
         std::string mode_file;
         std::string screen_off;
+        bool scene_strict;
         bool power_monitoring;
         bool using_inotify;
     } config;
@@ -67,6 +68,7 @@ private:
         {"poll_interval", 2},
         {"low_battery_threshold", 15},
         {"scene", true},
+        {"scene_strict", false},
         {"mode_file", ""},
         {"screen_off", "powersave"},
         {"power_monitoring", true},
@@ -90,6 +92,7 @@ private:
                 config.poll_interval = fileData.value("poll_interval", DEFAULT_CONFIG["poll_interval"]);
                 config.low_battery_threshold = fileData.value("low_battery_threshold", DEFAULT_CONFIG["low_battery_threshold"]);
                 config.scene = fileData.value("scene", DEFAULT_CONFIG["scene"]);
+                config.scene_strict = fileData.value("scene_strict", DEFAULT_CONFIG["scene_strict"]);
                 config.mode_file = fileData.value("mode_file", DEFAULT_CONFIG["mode_file"]);
                 config.screen_off = fileData.value("screen_off", DEFAULT_CONFIG["screen_off"]);
                 config.power_monitoring = fileData.value("power_monitoring", DEFAULT_CONFIG["power_monitoring"]);
@@ -99,6 +102,7 @@ private:
                 config.poll_interval = DEFAULT_CONFIG["poll_interval"];
                 config.low_battery_threshold = DEFAULT_CONFIG["low_battery_threshold"];
                 config.scene = DEFAULT_CONFIG["scene"];
+                config.scene_strict = DEFAULT_CONFIG["scene_strict"];
                 config.mode_file = DEFAULT_CONFIG["mode_file"];
                 config.screen_off = DEFAULT_CONFIG["screen_off"];
                 config.power_monitoring = DEFAULT_CONFIG["power_monitoring"];
@@ -120,6 +124,7 @@ private:
             fileData["poll_interval"] = config.poll_interval;
             fileData["low_battery_threshold"] = config.low_battery_threshold;
             fileData["scene"] = config.scene;
+            fileData["scene_strict"] = config.scene_strict;
             fileData["mode_file"] = config.mode_file;
             fileData["screen_off"] = config.screen_off;
             fileData["power_monitoring"] = config.power_monitoring;
@@ -143,6 +148,7 @@ public:
         result["poll_interval"] = config.poll_interval;
         result["low_battery_threshold"] = config.low_battery_threshold;
         result["scene"] = config.scene;
+        result["scene_strict"] = config.scene_strict;
         result["mode_file"] = config.mode_file;
         result["screen_off"] = config.screen_off;
         result["power_monitoring"] = config.power_monitoring;
@@ -154,25 +160,28 @@ public:
         {
             std::lock_guard<std::mutex> lock(configMutex);
             if (data.contains("poll_interval")) {
-                config.poll_interval = data["poll_interval"];
+                config.poll_interval = data.value("poll_interval", config.poll_interval);
             }
             if (data.contains("low_battery_threshold")) {
-                config.low_battery_threshold = data["low_battery_threshold"];
+                config.low_battery_threshold = data.value("low_battery_threshold", config.low_battery_threshold);
             }
             if (data.contains("scene")) {
-                config.scene = data["scene"];
+                config.scene = data.value("scene", config.scene);
+            }
+            if (data.contains("scene_strict")) {
+                config.scene_strict = data.value("scene_strict", config.scene_strict);
             }
             if (data.contains("mode_file")) {
-                config.mode_file = data["mode_file"];
+                config.mode_file = data.value("mode_file", config.mode_file);
             }
             if (data.contains("screen_off")) {
-                config.screen_off = data["screen_off"];
+                config.screen_off = data.value("screen_off", config.screen_off);
             }
             if (data.contains("power_monitoring")) {
-                config.power_monitoring = data["power_monitoring"];
+                config.power_monitoring = data.value("power_monitoring", config.power_monitoring);
             }
             if (data.contains("using_inotify")) {
-                config.using_inotify = data["using_inotify"];
+                config.using_inotify = data.value("using_inotify", config.using_inotify);
             }
         }
         modify=true;
@@ -293,7 +302,7 @@ public:
         {
             std::lock_guard<std::mutex> lock(configMutex);
             if (data.contains("defaultMode")) {
-                config.defaultMode = data["defaultMode"];
+                config.defaultMode = data.value("defaultMode",config.defaultMode);
             }
             
             config.apps.clear();
@@ -301,10 +310,10 @@ public:
                 for (const auto& rule : data["rules"]) {
                     AppMode appMode;
                     if (rule.contains("appPackage")) {
-                        appMode.pkgName = rule["appPackage"];
+                        appMode.pkgName = rule.value("appPackage","");
                     }
                     if (rule.contains("mode")) {
-                        appMode.mode = rule["mode"];
+                        appMode.mode = rule.value("mode","");
                     }
                     if (!appMode.pkgName.empty() && !appMode.mode.empty()) {
                         config.apps.push_back(appMode);

@@ -21,7 +21,7 @@ class PathConfig {
             const availableModes = await this.socketClient.communicate(request);
             
             this.paths = {
-                availableModes: availableModes || ['performance', 'balanced', 'power_saving', 'custom']
+                availableModes: availableModes || ['powersave', 'balance', 'performance', 'fast']
             };
             
             console.log('从后端加载可用模式成功:', this.paths.availableModes);
@@ -32,7 +32,7 @@ class PathConfig {
             
             // 备用方案：使用默认模式
             this.paths = {
-                availableModes: ['performance', 'balanced', 'power_saving', 'custom']
+                availableModes: ['powersave', 'balance', 'performance', 'fast']
             };
             
             return this.paths;

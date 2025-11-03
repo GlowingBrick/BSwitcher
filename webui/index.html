@@ -20,6 +20,9 @@
                 <button id="showPowerDataBtn" class="btn btn-icon btn-red" title="功耗列表">
                     📊
                 </button>
+                <button id="showLogsBtn" class="btn btn-icon btn-green" title="查看日志">
+                    📝
+                </button>
                 <button id="showConfigBtn" class="btn btn-icon btn-blue" title="系统配置">
                     ⚙️
                 </button>
@@ -53,6 +56,23 @@
 
                     <div class="form-actions">
                         <button id="closePowerBtn" class="btn btn-primary">关闭</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="logsModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>BSwitcher 日志</h3>
+                    <span class="close-logs">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="logs-container">
+                        <pre id="logsContent" class="logs-content"></pre>
+                    </div>
+                    <div class="form-actions">
+                        <button id="closeLogsBtn" class="btn btn-primary">关闭</button>
                     </div>
                 </div>
             </div>

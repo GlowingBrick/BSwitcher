@@ -8,14 +8,15 @@ std::shared_ptr<ConfigListTarget> configlistTarget;
 std::shared_ptr<AvailableModesTarget> availableModesTarget;
 std::shared_ptr<PowerMonitorTarget> powerMonitorTarget;
 
-std::string sState = "";
-std::string sEntry = "";
-int sleepDuring = 2;
-bool (*write_mode)(const std::string &);
-std::string currentApp;
-int init_service()
-{
-    mainConfigTarget = std::make_shared<MainConfigTarget>(); // 配置初始化
+std::string sState = "";    //状态文件入口
+std::string sEntry = "";    //状态脚本入口，一般/data/powercfg.sh
+auto sleepDuring = std::chrono::microseconds(1000); //休眠时间
+bool (*write_mode)(const std::string&); //写状态函数
+bool sceneStrict = false;   //严格scene
+std::string currentApp = "";    //前台app
+
+int init_service() {
+    mainConfigTarget = std::make_shared<MainConfigTarget>();  // 配置初始化
     schedulerConfigTarget = std::make_shared<SchedulerConfigTarget>();
     infoConfigTarget = std::make_shared<InfoConfigTarget>("Custom", "unknow", "0.0.0");
     appListTarget = std::make_shared<ApplistConfigTarget>();
@@ -52,7 +53,14 @@ int init_service()
                                            {"label", "Scene模式"},
                                            {"description", "使用Scene的调度配置接口"},
                                            {"category", "模式设置"},
-                                           {"affects", {"mode_file"}}},
+                                           {"affects", {"mode_file", "scene_strict"}}},
+                                          {{"key", "scene_strict"},
+                                           {"type", "checkbox"},
+                                           {"label", "严格Scene模式"},
+                                           {"description", "严格模仿Scene行为"},
+                                           {"category", "模式设置"},
+                                           {"dependsOn", {{"field", "scene"}, {"condition", true}}},
+                                           {"affects", {"screen_off"}}},
                                           {{"key", "mode_file"},
                                            {"type", "text"},
                                            {"label", "模式文件路径"},
@@ -64,10 +72,11 @@ int init_service()
                                            {"label", "屏幕关闭模式"},
                                            {"description", "屏幕关闭时自动切换到的模式"},
                                            {"category", "模式设置"},
-                                           {"options", "availableModes"}}};
+                                           {"options", "availableModes"},
+                                           {"dependsOn", {{"field", "scene_strict"}, {"condition", false}}}}};
     configlistTarget = std::make_shared<ConfigListTarget>(CONFIG_SCHEMA);
 
-    JSONSocket::registerConfigTarget(mainConfigTarget); // 注册所有socket模块
+    JSONSocket::registerConfigTarget(mainConfigTarget);  // 注册所有socket模块
     JSONSocket::registerConfigTarget(schedulerConfigTarget);
     JSONSocket::registerConfigTarget(infoConfigTarget);
     JSONSocket::registerConfigTarget(appListTarget);
@@ -75,164 +84,160 @@ int init_service()
     JSONSocket::registerConfigTarget(availableModesTarget);
     JSONSocket::registerConfigTarget(powerMonitorTarget);
 
-    if (!JSONSocket::initialize("/dev/BSwitcher"))
-    {
+    if (!JSONSocket::initialize("/dev/BSwitcher")) {    //启用UNIX Socket
         return 0;
     }
     return 1;
 }
 
-std::string read_current_mode(const std::string &entryFile)
-{
-    std::ifstream file(entryFile);
-    if (!file.is_open())
-    {
-        return ""; // 文件不存在或无法打开
-    }
-
-    std::string buffer;
-    file >> buffer;
-
-    return buffer;
-}
-
-bool unscene_write_mode(const std::string &mode)
-{ // 非scene模式写mode
+bool unscene_write_mode(const std::string& mode) {  // 非scene模式写mode
     std::ofstream file(sState, std::ios::trunc);
-    if (!file)
-    {
-        return false; // 文件打开失败
+    if (!file) {
+        return false;  // 文件打开失败
     }
 
     file << mode;
     return !file.fail();
 }
 
-bool scene_write_mode(const std::string &mode)
-{ // scene模式写mode
+bool scene_write_mode(const std::string& mode) {  // scene模式写mode
+
+    if (sceneStrict) {
+        setenv("top_app", currentApp.c_str(), 1);   //模拟scene的环境变量
+        setenv("scene", currentApp.c_str(), 1);
+        setenv("mode", mode.c_str(), 1);
+    }
     std::string command = "sh " + sEntry + " " + mode;
     int result = std::system(command.c_str());
     return result == 0;
 }
 
-bool dummy_write_mode(const std::string &mode)
-{
+bool dummy_write_mode(const std::string& mode) {  //空的写函数，防段错误
     return 1;
 }
 
-int load_config()
-{
-    std::unique_lock<std::mutex> lock(mainConfigTarget->configMutex);   //获取锁
+int load_config() {
+    std::lock_guard<std::mutex> mLock(mainConfigTarget->configMutex);  // 获取锁
 
-    if(mainConfigTarget->config.power_monitoring)   //是否启用功耗监控
+    if (mainConfigTarget->config.power_monitoring)  // 是否启用功耗监控
     {
         powerMonitorTarget->start();
-    }
-    else
-    {
+    } else {
         powerMonitorTarget->stop();
     }
 
-    if (mainConfigTarget->config.poll_interval <= 1)
-    {
-        sleepDuring = -1;
-    }
-    else
-    {
-        sleepDuring = mainConfigTarget->config.poll_interval - 1; // 定义时间间隔
+    if (mainConfigTarget->config.poll_interval <= 1) {  //间隔时间为1以下时
+        sleepDuring = std::chrono::microseconds(100);
+    } else {
+        sleepDuring = std::chrono::microseconds((mainConfigTarget->config.poll_interval - 1) * 1000);  // 定义时间间隔
     }
 
+    write_mode = dummy_write_mode;  // 防段错误
+    static bool lastscene = false;  //记录scenemode是否改变
+    sceneStrict = false;
 
-    write_mode = dummy_write_mode;              // 防段错误
-    sleepDuring = 2;
-    if (mainConfigTarget->config.scene == true) // scene模式启用时，加载/data/powercfg.json
+    if (mainConfigTarget->config.scene == true)  // scene模式启用时，加载/data/powercfg.json
     {
         std::ifstream powercfgfile("/data/powercfg.json");
-        if (powercfgfile.is_open())
-        { // 加载powercfg
-            try
-            {
-                nlohmann::json powercfg;
-                powercfgfile >> powercfg;
+        bool shexist = std::filesystem::exists("/data/powercfg.sh");
+        sEntry = "";
 
-                std::string sname = "Unknow";
-                if (powercfg.contains("name"))
-                { // 解析name
-                    sname = powercfg["name"];
-                }
-
-                std::string sauthor = "Unknow";
-                if (powercfg.contains("author"))
-                { // 解析author
-                    sauthor = powercfg["author"];
-                }
-
-                std::string sversion = "Unknow";
-                if (powercfg.contains("version"))
-                { // 解析version
-                    sversion = powercfg["version"];
-                }
-
-                if (powercfg.contains("entry"))
-                { // 检查是否存在entry字段
-                    sEntry = powercfg["entry"];
-                }
-                else
-                {
-                    if (std::filesystem::exists("/data/powercfg.sh"))
-                    { // 否则检查是否存在/data/powercfg.sh
-                        sEntry = "/data/powercfg.sh";
-                    }
-                    else
-                    {
-                        LOGE("Entry not found. Scene mode has been disabled.");
-                        mainConfigTarget->config.scene = false;
-                        sname = "Custom";
-                        sauthor = "Unknow";
-                        sversion = "Unknow";
-                    }
-                }
-
-                infoConfigTarget->setData(sname, sauthor, sversion); // 装载进配置
-                LOGD("Config loaded");
+        if (powercfgfile.is_open() || shexist)  // 如果powercfg.json或powercfg.sh任一可用
+        {                                       // 加载
+            if (shexist) {
+                sEntry = "/data/powercfg.sh";  // 定义默认位置
+                infoConfigTarget->setData("Unknow Name", "", "");
             }
-            catch (const nlohmann::json::exception &e)
-            {
-                LOGE("Configuration source (powercfg.json) parsing failed. Scene mode has been disabled.");
+            if (powercfgfile.is_open()) {
+                try {
+                    nlohmann::json powercfg;
+                    powercfgfile >> powercfg;
+
+                    std::string sauthor = "Undefined";
+                    std::string sname = "Undefined";
+                    std::string sversion = "Undefined";
+
+                    if (powercfg.contains("entry")) {  // 检查是否存在entry字段
+                        sEntry = powercfg["entry"];
+                    } else {
+                        if (std::filesystem::exists("/data/powercfg.sh")) {  // 否则检查是否存在/data/powercfg.sh
+                            sEntry = "/data/powercfg.sh";
+                        } else {
+                            LOGE("Entry not found. Scene mode has been disabled.");
+                            mainConfigTarget->config.scene = false;
+                            sname = "Custom";
+                            sauthor = "Unknow";
+                            sversion = "Unknow";
+                        }
+                    }
+
+                    if (powercfg.contains("features") && powercfg["features"].is_object()) {
+                        sceneStrict = (powercfg["features"].value("strict", false)) && mainConfigTarget->config.scene_strict;  //都为true时才启用
+                    }
+
+                    if (powercfg.contains("name")) {  // 解析name
+                        sname = powercfg["name"];
+                    }
+
+                    if (powercfg.contains("author")) {  // 解析author
+                        sauthor = powercfg["author"];
+                    }
+
+                    if (powercfg.contains("version")) {  // 解析version
+                        sversion = powercfg["version"];
+                    }
+
+                    infoConfigTarget->setData(sname, sauthor, sversion);  // 装载进配置
+                    LOGD("Config loaded");
+                } catch (const nlohmann::json::exception& e) {
+                    LOGE("Configuration source (powercfg.json) parsing failed.");
+                }
+
+                if (lastscene == false) {  //避免多次init
+                    scene_write_mode("init");
+                }
             }
-        }
-        else
-        { // /data/powercfg.json不存在
+        } else  // 都不存在
+        {
             LOGE("Configuration source (powercfg.json) not found. Scene mode has been disabled.");
             mainConfigTarget->config.scene = false;
         }
         powercfgfile.close();
     }
 
-    if (mainConfigTarget->config.scene != true)
-    { // 如果不是scene模式
-        if (std::filesystem::exists(mainConfigTarget->config.mode_file))
-        { // 如果自定义mode_file可用
+    if (!sceneStrict) {  //清理环境
+        unsetenv("top_app");
+        unsetenv("scene");
+        unsetenv("mode");
+    }
+
+    lastscene = mainConfigTarget->config.scene;
+
+    if (mainConfigTarget->config.scene != true) {  // 如果不是scene模式
+        sceneStrict = false;
+        if (std::filesystem::exists(mainConfigTarget->config.mode_file)) {  // 如果自定义mode_file可用
             sState = mainConfigTarget->config.mode_file;
             infoConfigTarget->setData("Custom", "", "");
-        }
-        else
-        {
+        } else {  //没有可用的配置
             infoConfigTarget->setData("No config available", "", "");
             LOGE("No config available, Waiting for configuration.");
 
             return -1;
         }
     }
-    write_mode = (mainConfigTarget->config.scene) ? scene_write_mode : unscene_write_mode; // 定义写入函数
+    write_mode = (mainConfigTarget->config.scene) ? scene_write_mode : unscene_write_mode;  // 定义写入函数
+
+    if (sceneStrict) {
+        LOGI("Strict Scene Enabled");
+    }
 
     return 0;
 }
 
-bool ScreenState()
-{
+bool ScreenState() {
     // 检查背光亮度
-    return powerMonitorTarget->screenstatus();;
+    return powerMonitorTarget->screenstatus();
+    ;
 }
 
 int getBatteryLevel() {
@@ -240,27 +245,26 @@ int getBatteryLevel() {
         int fd = open("/sys/class/power_supply/battery/capacity", O_RDONLY | O_CLOEXEC);
         return (fd >= 0) ? fd : -1;
     }();
-    
+
     if (battery_fd < 0) {
-        return 100;  
+        return 100;
     }
-    
+
     char buf[5] = {0};
-    ssize_t bytes_read = pread(battery_fd, buf, sizeof(buf)-1, 0);
-    
+    ssize_t bytes_read = pread(battery_fd, buf, sizeof(buf) - 1, 0);
+
     if (bytes_read <= 0) {
-        return 100; 
+        return 100;
     }
-    
+
     buf[bytes_read] = '\0';
 
-    int btl=atoi(buf);
-    LOGD("BatteryLevel: %d",btl);
+    int btl = atoi(buf);
+    LOGD("BatteryLevel: %d", btl);
     return btl;
 }
 
-void bind_to_core()
-{
+void bind_to_core() {  //绑定到0 1小核
     cpu_set_t mask;
     CPU_ZERO(&mask);
     CPU_SET(0, &mask);
@@ -269,139 +273,122 @@ void bind_to_core()
     sched_setaffinity(0, sizeof(mask), &mask);
 }
 
-int main()
-{
+int main() {
 
-    if (fork() > 0)
-    {
+    if (fork() > 0) {
         exit(0);
     }
 
     setsid();
 
-    if (fork() > 0)
-    {
-        exit(0); // 孤儿模拟器.jpg
+    if (fork() > 0) {
+        exit(0);  // 孤儿模拟器.jpg
     }
 
-    if (!init_service())
-    {
+    if (!init_service()) {
         LOGE("Failed to initialize JSONSocket");
         return -1;
     }
 
     bind_to_core();
 
-
-
-    std::string lastMode = read_current_mode(sState);
     std::string newMode;
+    std::string lastMode = "";
 
     bool usinotify = true;
     {
-        std::unique_lock<std::mutex> lock(mainConfigTarget->configMutex);
-        usinotify=mainConfigTarget->config.using_inotify;
+        std::lock_guard<std::mutex> lock(mainConfigTarget->configMutex);
+        usinotify = mainConfigTarget->config.using_inotify;  //提前取出inotify
     }
 
-    if(usinotify)
-    {
+    if (usinotify) {
         std::vector<std::string> files_to_watch = {
-            "/dev/cpuset/top-app/cgroup.procs",     //前台变化时响应
-            "/dev/cpuset/top-app/tasks",
-            "/dev/cpuset/restricted/cgroup.procs",  //熄屏时响应
-            "/dev/cpuset/restricted/tasks"
-        };
+            "/dev/cpuset/top-app/cgroup.procs",     // 前台变化时响应
+            "/dev/cpuset/top-app/tasks",            //有时候有用
+            "/dev/cpuset/restricted/cgroup.procs",  // 熄屏时响应
+            "/dev/cpuset/restricted/tasks"};        //可能有用
         FileWatcher::initialize(files_to_watch);
     }
 
 
-    // 预先提取对象，提升效率
-    auto &mainModify = mainConfigTarget->modify;
-    auto &mainConfig = mainConfigTarget->config;
-    auto &mainMutex = mainConfigTarget->configMutex;
+    auto& mainModify = mainConfigTarget->modify;
+    auto& mainConfig = mainConfigTarget->config;
+    auto& mainMutex = mainConfigTarget->configMutex;
 
-    auto &schedulerMutex = schedulerConfigTarget->configMutex;
-    auto &schedulerConfig = schedulerConfigTarget->config;
+    auto& schedulerMutex = schedulerConfigTarget->configMutex;
+    auto& schedulerConfig = schedulerConfigTarget->config;
 
-    int timeset=10000;
+    int timeset = 10000;
+
+    TopAppDetector topAppDetector;
 
     LOGD("Enter main loop");
-    while (1) // 主循环
+    while (1)  // 主循环
     {
-        if (unlikely(mainModify))
-        {
-            if (load_config() == -1)
-            {
-                while (1)
-                { // 无效数据，重试
+        if (unlikely(mainModify)) {  //检查配置文件是否修改
+            if (load_config() == -1) {
+                while (1) {  // 无效数据，重试
                     sleep(10);
-                    if (mainModify == true)
-                    {
-                        if (load_config() == 0)
-                        {
-                            lastMode = read_current_mode(sState);
+                    if (mainModify == true) {
+                        if (load_config() == 0) {
                             break;
                         }
                     }
                 }
             }
             mainModify = false;
-        }
-        if (sleepDuring > 0)
-        {
-            sleep(sleepDuring);
-        }
-        else
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            lastMode = "";
         }
 
-        FileWatcher::wait(timeset); // 阻塞等待cgroup变化
-        sleep(1);            // 等1秒防抖，避免出现none
+        std::this_thread::sleep_for(sleepDuring);              //等待
+        FileWatcher::wait(timeset);                            // 阻塞等待cgroup变化
+        std::this_thread::sleep_for(std::chrono::seconds(1));  // 等1秒防抖，避免出现none
 
         {
-            std::unique_lock<std::mutex> lock(mainMutex);
+            std::unique_lock<std::mutex> mLock(mainMutex);
 
-            timeset=40000;
-            if (!ScreenState())
-            {
-                newMode = mainConfig.screen_off;
-                timeset=120000;
-                currentApp="";
+            timeset = 40000;
+            if (!ScreenState()) {
+                newMode = sceneStrict ? "standby" : mainConfig.screen_off;  //在严格的scene模式下使用standby
+                timeset = 180000;                                           //降低检查频率
+                currentApp = "";
                 LOGD("Found screen off,Increase sleep time");
-            }
-            else if (getBatteryLevel() < mainConfig.low_battery_threshold)
-            {
+
+            } else if (getBatteryLevel() < mainConfig.low_battery_threshold) {  //低电量
                 newMode = "powersave";
-            }
-            else
-            {
+
+            } else {
                 newMode = schedulerConfig.defaultMode;
                 {
-                    std::unique_lock<std::mutex> lock(schedulerMutex);
-                    if (!schedulerConfig.apps.empty())
-                    {
-                        currentApp = getForegroundApp();
+                    mLock.unlock();
+                    std::lock_guard<std::mutex> sLock(schedulerMutex);
+
+                    if (!schedulerConfig.apps.empty()) {  //为空时跳过
+                        currentApp = topAppDetector.getForegroundApp();
 
                         LOGD("CurrentAPP: %s", currentApp.c_str());
-                        if (!currentApp.empty())
-                        { 
-                            for (const auto &app : schedulerConfig.apps)    //匹配应用列表
-                            { // 遍历app列表
-                                if (app.pkgName == currentApp)
-                                {
+                        if (!currentApp.empty()) {  //未获取到时跳过
+                            for (const auto& app : schedulerConfig.apps)  // 匹配应用列表
+                            {                                             // 遍历app列表
+                                if (app.pkgName == currentApp) {
                                     newMode = app.mode;
                                     break;
                                 }
-                                std::this_thread::sleep_for(std::chrono::milliseconds(1)); // 避免负载集中
+                                std::this_thread::sleep_for(std::chrono::milliseconds(1));  // 避免负载集中
                             }
                         }
                     }
                 }
             }
         }
-
-        if (lastMode != newMode)    //有变化时再写入
+        if (sceneStrict) {  //严格scene时
+            static std::string lastapp = "";
+            if (currentApp != lastapp) {
+                write_mode(newMode);
+                lastapp = currentApp;
+                LOGI("Updated to: %s", newMode.c_str());
+            }
+        } else if (lastMode != newMode)  // 有变化时
         {
             write_mode(newMode);
             lastMode = newMode;
@@ -409,8 +396,8 @@ int main()
         }
     }
 
-    powerMonitorTarget->stop(); // 应该运行不到这
-    JSONSocket::stop(); 
+    powerMonitorTarget->stop();  // 应该运行不到这
+    JSONSocket::stop();
     LOGE("Main function abnormal exit");
     exit(-1);
     return 0;

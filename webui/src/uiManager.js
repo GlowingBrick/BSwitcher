@@ -11,6 +11,7 @@ export class UIManager {
         this.modal = document.getElementById('addRuleModal');
         this.configModal = document.getElementById('configModal');
         this.powerModal = document.getElementById('powerDataModal');
+        this.logsModal = document.getElementById('logsModal');
 
         this.allApps = [];
         this.refreshBtn = null;
@@ -74,7 +75,7 @@ export class UIManager {
         }
     }
 
-    // 绑定事件 - 单一版本
+    // 绑定事件
     bindEvents() {
         // 添加规则按钮
         document.getElementById('addRuleBtn').addEventListener('click', () => {
@@ -94,6 +95,19 @@ export class UIManager {
         // 保存规则按钮
         document.getElementById('saveRuleBtn').addEventListener('click', () => {
             this.saveRule();
+        });
+
+        // 日志按钮事件
+        document.getElementById('showLogsBtn').addEventListener('click', () => {
+            this.showLogsModal();
+        });
+
+        document.querySelector('.close-logs').addEventListener('click', () => {
+            this.hideLogsModal();
+        });
+
+        document.getElementById('closeLogsBtn').addEventListener('click', () => {
+            this.hideLogsModal();
         });
 
         // 默认模式变更
@@ -175,6 +189,92 @@ export class UIManager {
                     this.updateModeFileAvailability(e.target.checked);
                 }
             });
+        }
+    }
+
+
+    // 显示日志模态框
+    async showLogsModal() {
+        try {
+            this.logsModal.style.display = 'block';
+            this.showLogsLoading();
+            
+            // 加载日志
+            const logs = await this.loadLogs();
+            this.renderLogs(logs);
+            
+            // 确保滚动到底部
+            setTimeout(() => {
+                this.scrollLogsToBottom();
+            }, 100);
+            
+        } catch (error) {
+            console.error('加载日志失败:', error);
+            this.showLogsError('加载日志失败: ' + error.message);
+        }
+    }
+
+    // 隐藏日志模态框
+    hideLogsModal() {
+        if (this.logsModal) {
+            this.logsModal.style.display = 'none';
+        }
+    }
+
+    // 加载日志
+    async loadLogs() {
+        const { exec } = await import('./ksu.js');
+        
+        // 更新日志命令
+        const command = `logcat -v time -d -s "BSwitcher" | sed -E 's/^[0-9]*-[0-9]* //; s/\\.[0-9]*//; s/\\/[^\\(]*\\([^)]*\\):/:/'`;
+        
+        const result = await exec(command);
+        
+        if (result.errno === 0) {
+            return result.stdout || '暂无日志';
+        } else {
+            throw new Error(result.stderr || '获取日志失败');
+        }
+    }
+
+    // 显示日志加载状态
+    showLogsLoading() {
+        const logsContent = document.getElementById('logsContent');
+        if (logsContent) {
+            logsContent.innerHTML = '<div class="logs-loading">正在加载日志...</div>';
+        }
+    }
+
+    // 显示日志错误
+    showLogsError(message) {
+        const logsContent = document.getElementById('logsContent');
+        if (logsContent) {
+            logsContent.innerHTML = `<div class="logs-error">${message}</div>`;
+        }
+    }
+
+    // 渲染日志内容
+    renderLogs(logs) {
+        const logsContent = document.getElementById('logsContent');
+        if (!logsContent) return;
+
+        if (!logs) {
+            logsContent.textContent = '暂无日志';
+            return;
+        }
+
+        // 直接显示原始日志内容
+        logsContent.textContent = logs;
+        
+        // 滚动到底部
+        this.scrollLogsToBottom();
+    }
+
+    // 滚动日志到底部
+    scrollLogsToBottom() {
+        const logsContent = document.getElementById('logsContent');
+        if (logsContent) {
+            logsContent.scrollTop = logsContent.scrollHeight;
         }
     }
 
