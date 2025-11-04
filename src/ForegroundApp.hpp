@@ -1,9 +1,8 @@
-/*****************************************
- * This module implements foreground application detection on Android based on dumpsys.
- * Developed by BCK.
-*****************************************/
-#ifndef __HFAPP__
-#define __HFAPP__
+/*提供前台应用检测*/
+/*三种实现，自动选择可用的版本*/
+
+#ifndef TOP_APP_HPP
+#define TOP_APP_HPP
 
 #include "Alog.hpp"
 #include <cstring>

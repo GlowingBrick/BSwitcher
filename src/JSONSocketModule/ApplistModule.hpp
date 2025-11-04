@@ -1,4 +1,8 @@
-#include "JSONSocket.hpp"
+/*提供应用列表的加载*/
+/*依靠pm和aapt,有亿点慢，没办法将就吃吧*/
+#ifndef APPLIST_MODULE_HPP
+#define APPLIST_MODULE_HPP
+#include "JSONSocket/JSONSocket.hpp"
 #include <vector>
 #include <string>
 #include <mutex>
@@ -303,3 +307,5 @@ private:
         return result;
     }
 };
+
+#endif

@@ -1,9 +1,9 @@
-//用于监视系统电源状态
-//顺便检查屏幕
-#ifndef POWERMONITORTARGET_HPP
-#define POWERMONITORTARGET_HPP
+/*用于监视系统电源状态*/
+/*顺便检查屏幕*/
+#ifndef POWER_MONITOR_MODULE_HPP
+#define POWER_MONITOR_MODULE_HPP
 
-#include "JSONSocket.hpp"
+#include "JSONSocket/JSONSocket.hpp"
 #include <atomic>
 #include <condition_variable>
 #include <cstring>
@@ -32,7 +32,6 @@ private:
     int current_fd_ = -1;
     int voltage_fd_ = -1;
     int status_fd_ = -1;
-    int screen_fd_ = -1;
 
     // 线程控制
     std::atomic<bool> running_{false};
@@ -51,35 +50,6 @@ private:
         voltage_fd_ = open("/sys/class/power_supply/battery/voltage_now", O_RDONLY | O_CLOEXEC);
         status_fd_ = open("/sys/class/power_supply/battery/status", O_RDONLY | O_CLOEXEC);
         return (current_fd_ >= 0) && (voltage_fd_ >= 0);  //status不是必须的
-    }
-
-    bool __read_screen_status() {
-        char buffer[128];
-        int line_count = 0;
-        ssize_t bytes_read;
-
-        if((bytes_read = pread(screen_fd_, buffer, sizeof(buffer), 0)) > 0) {
-            for (ssize_t i = 0; i < bytes_read; i++) {
-                if (buffer[i] == '\n') {
-                    line_count++;
-                    if (line_count >= 5) {  ///dev/cpuset/restricted/cgroup.procs大于5条时即可认为熄屏
-                        return false;
-                    }
-                }
-            }
-        }
-
-        return true;    //不可用时认为亮屏，避免干扰
-    }
-
-    bool read_screen_status() {  //写入共享变量
-        if (__read_screen_status()) {
-            screen_status.store(true, std::memory_order_relaxed);
-            return true;
-        } else {
-            screen_status.store(false, std::memory_order_relaxed);
-            return false;
-        }
     }
 
     // 读取当前功率（瓦特）
@@ -249,7 +219,6 @@ private:
 public:
     PowerMonitorTarget(std::string* current_app_ptr) {
         current_app_ptr_ = current_app_ptr;  //放弃线程安全，反正不会有致命错误
-        screen_fd_ = open("/dev/cpuset/restricted/cgroup.procs", O_RDONLY | O_CLOEXEC);
     }
 
     ~PowerMonitorTarget() {
@@ -265,10 +234,6 @@ public:
         if (status_fd_ >= 0) {
             close(status_fd_);
             status_fd_ = -1;
-        }
-        if (screen_fd_ >= 0) {
-            close(status_fd_);
-            screen_fd_ = -1;
         }
     }
 
@@ -326,19 +291,18 @@ public:
         }
     }
 
-    bool screenstatus() {                                         //获取屏幕状态
-        if (running_.load(std::memory_order_relaxed) == false) {  //如果没有启用监视
-            return __read_screen_status();
+    void setScreenStatus(bool sstatus) {                           //传入屏幕状态
+        if (!running_.load(std::memory_order_relaxed) == false) {  //如果没有启用监视
+            return;
         }
-        bool ss = read_screen_status();
 
+        screen_status.store(sstatus, std::memory_order_relaxed);
         if (stop_.load(std::memory_order_relaxed)) {  //如果监视线程休眠
-            if (ss) {                                 //如果亮屏
+            if (sstatus) {                            //如果亮屏
                 stop_.store(false);
                 cv_.notify_all();  //唤醒
             }
         }
-        return ss;
     }
 
     bool isRunning() const {

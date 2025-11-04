@@ -1,7 +1,5 @@
-/*****************************************
- * This module is designed to provide framework support for parsing JSON read/write commands.
- * Developed by DeepSeek under the supervision and guidance of BCK.
-*****************************************/
+/*依靠UnixSocketServer.hpp，为前端传入的json指令解析与执行*/
+
 #include "JSONSocket.hpp"
 
 // 静态成员定义

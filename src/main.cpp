@@ -8,12 +8,12 @@ std::shared_ptr<ConfigListTarget> configlistTarget;
 std::shared_ptr<AvailableModesTarget> availableModesTarget;
 std::shared_ptr<PowerMonitorTarget> powerMonitorTarget;
 
-std::string sState = "";    //状态文件入口
-std::string sEntry = "";    //状态脚本入口，一般/data/powercfg.sh
-auto sleepDuring = std::chrono::microseconds(1000); //休眠时间
-bool (*write_mode)(const std::string&); //写状态函数
-bool sceneStrict = false;   //严格scene
-std::string currentApp = "";    //前台app
+std::string sState = "";                             //状态文件入口
+std::string sEntry = "";                             //状态脚本入口，一般/data/powercfg.sh
+auto sleepDuring = std::chrono::microseconds(1000);  //休眠时间
+bool (*write_mode)(const std::string&);              //写状态函数
+bool sceneStrict = false;                            //严格scene
+std::string currentApp = "";                         //前台app
 
 int init_service() {
     mainConfigTarget = std::make_shared<MainConfigTarget>();  // 配置初始化
@@ -84,7 +84,7 @@ int init_service() {
     JSONSocket::registerConfigTarget(availableModesTarget);
     JSONSocket::registerConfigTarget(powerMonitorTarget);
 
-    if (!JSONSocket::initialize("/dev/BSwitcher")) {    //启用UNIX Socket
+    if (!JSONSocket::initialize("/dev/BSwitcher")) {  //启用UNIX Socket
         return 0;
     }
     return 1;
@@ -103,7 +103,7 @@ bool unscene_write_mode(const std::string& mode) {  // 非scene模式写mode
 bool scene_write_mode(const std::string& mode) {  // scene模式写mode
 
     if (sceneStrict) {
-        setenv("top_app", currentApp.c_str(), 1);   //模拟scene的环境变量
+        setenv("top_app", currentApp.c_str(), 1);  //模拟scene的环境变量
         setenv("scene", currentApp.c_str(), 1);
         setenv("mode", mode.c_str(), 1);
     }
@@ -235,9 +235,28 @@ int load_config() {
 }
 
 bool ScreenState() {
-    // 检查背光亮度
-    return powerMonitorTarget->screenstatus();
-    ;
+    static int screen_fd_ = []() {
+        int fd = open("/dev/cpuset/restricted/cgroup.procs", O_RDONLY | O_CLOEXEC);
+        return (fd >= 0) ? fd : -1;
+    }();
+    char buffer[128];
+    int line_count = 0;
+    ssize_t bytes_read;
+
+    if ((bytes_read = pread(screen_fd_, buffer, sizeof(buffer), 0)) > 0) {
+        for (ssize_t i = 0; i < bytes_read; i++) {
+            if (buffer[i] == '\n') {
+                line_count++;
+                if (line_count >= 5) {  ///dev/cpuset/restricted/cgroup.procs大于5条时即可认为熄屏
+                    powerMonitorTarget->setScreenStatus(false);
+                    return false;
+                }
+            }
+        }
+    }
+
+    powerMonitorTarget->setScreenStatus(true);
+    return true;  //少于5条或不可用
 }
 
 int getBatteryLevel() {
@@ -310,7 +329,6 @@ int main() {
         FileWatcher::initialize(files_to_watch);
     }
 
-
     auto& mainModify = mainConfigTarget->modify;
     auto& mainConfig = mainConfigTarget->config;
     auto& mainMutex = mainConfigTarget->configMutex;
@@ -367,7 +385,7 @@ int main() {
                         currentApp = topAppDetector.getForegroundApp();
 
                         LOGD("CurrentAPP: %s", currentApp.c_str());
-                        if (!currentApp.empty()) {  //未获取到时跳过
+                        if (!currentApp.empty()) {                        //未获取到时跳过
                             for (const auto& app : schedulerConfig.apps)  // 匹配应用列表
                             {                                             // 遍历app列表
                                 if (app.pkgName == currentApp) {

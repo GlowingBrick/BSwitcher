@@ -1,4 +1,5 @@
-/*This module provides fundamental LOG definitions.*/
+/*提供基础的日志记录定义*/
+/*支持Android logd和printf*/
 #ifndef __ALOG__
 #define __ALOG__
 

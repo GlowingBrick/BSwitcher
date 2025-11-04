@@ -1,7 +1,6 @@
-/*****************************************
- * This module implements foreground application detection on Android based on dumpsys.
- * Developed by BCK with assistance from DeepSeek.
-*****************************************/
+/*提供前台应用检测*/
+/*三种实现，自动选择可用的版本*/
+
 #include <ForegroundApp.hpp>
 
 std::string TopAppDetector::__getForegroundApp_backup() {  //使用grep的备用方案

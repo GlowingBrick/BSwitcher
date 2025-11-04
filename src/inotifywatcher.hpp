@@ -1,3 +1,7 @@
+/*提供基础的inotify阻塞式监听*/
+/*不解析内容，能跑就行*/
+#ifndef INOTIFY_WATCHER
+#define INOTIFY_WATCHER
 
 #include <vector>
 #include <string>
@@ -184,3 +188,5 @@ private:
 // 静态成员初始化
 int FileWatcher::inotify_fd = -1;
 std::vector<int> FileWatcher::watch_descriptors;
+
+#endif

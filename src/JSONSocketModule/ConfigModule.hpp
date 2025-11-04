@@ -1,4 +1,8 @@
-#include "JSONSocket.hpp"
+/*维护各配置文件加载与读写*/
+#ifndef CONFIG_MODULE_HPP
+#define CONFIG_MODULE_HPP
+
+#include "JSONSocket/JSONSocket.hpp"
 #include <fstream>
 #include <vector>
 #include <string>
@@ -325,3 +329,5 @@ public:
         return writeToFile();
     }
 };
+
+#endif

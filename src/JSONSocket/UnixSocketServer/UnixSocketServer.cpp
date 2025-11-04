@@ -1,7 +1,6 @@
-/*****************************************
- * This module is designed to provide automated monitoring and processing of JSON transmission through Unix sockets.
- * Developed by DeepSeek under the supervision and guidance of BCK.
-*****************************************/
+/*提供一个简单的UnixSocket服务维护*/
+/*并且在其中吞吐JSON*/
+
 #include "UnixSocketServer.hpp"
 
 UnixSocketServer::UnixSocketServer(const std::string& socket_path, CallbackFunction callback, 
@@ -13,7 +12,6 @@ UnixSocketServer::UnixSocketServer(const std::string& socket_path, CallbackFunct
     
     LOGD("UnixSocketServer constructor: socket_path=%s", socket_path.c_str());
     
-    // 创建管道用于优雅关闭
     if (pipe(shutdown_pipe_) == -1) {
         LOGE("Failed to create shutdown pipe: %s", strerror(errno));
     } else {
@@ -153,19 +151,19 @@ void UnixSocketServer::run() {
         LOGD("Waiting for connection...");
         
         // 阻塞等待事件，直到有连接或关闭信号
-        int poll_result = poll(fds, 2, -1); // -1 表示无限等待
+        int poll_result = poll(fds, 2, -1);
         
         if (poll_result == -1) {
             if (errno == EINTR) {
                 LOGD("Poll interrupted by signal, continuing...");
-                continue; // 被信号中断，继续等待
+                continue;
             }
             LOGE("Poll failed: %s", strerror(errno));
             break;
         }
         
         if (poll_result == 0) {
-            continue; // 超时，但这里不会发生因为设置了无限等待
+            continue; // 应该不会运行到这里
         }
         
         // 检查关闭信号
@@ -204,7 +202,7 @@ void UnixSocketServer::handleClient(int client_fd) {
     auto last_data_time = std::chrono::steady_clock::now();
     bool connection_active = true;
     
-    // 设置客户端socket为非阻塞（仅用于读取超时）
+    // 设置客户端socket为非阻塞
     int flags = fcntl(client_fd, F_GETFL, 0);
     fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
 
@@ -261,7 +259,6 @@ void UnixSocketServer::handleClient(int client_fd) {
                 LOGD("Received %zd bytes from client fd=%d, total buffer size: %zu", 
                      bytes_received, client_fd, received_data.size());
 
-                // 处理接收到的数据，返回是否应该立即断开连接
                 bool should_disconnect = processClientData(client_fd, received_data);
                 if (should_disconnect) {
                     LOGD("Successfully processed request, closing connection, fd=%d", client_fd);
@@ -330,9 +327,8 @@ bool UnixSocketServer::processClientData(int client_fd, std::string& received_da
             }
         }
 
-        // 调用回调函数处理消息，直接传递解析后的json对象
         LOGD("Calling callback function with parsed JSON");
-        std::string response = callback_(json);
+        std::string response = callback_(json); //进入回调函数
         
         // 确保响应以换行符结束
         if (!response.empty() && response.back() != '\n') {
@@ -343,13 +339,11 @@ bool UnixSocketServer::processClientData(int client_fd, std::string& received_da
         // 发送响应
         sendResponse(client_fd, response);
         
-        // 成功处理了一个完整消息，立即断开连接
-        return true;
+        return true;        //完毕断开
         
     } catch (const nlohmann::json::parse_error& e) {
         LOGE("JSON parse error for client fd=%d: %s", client_fd, e.what());
         
-        // 错误响应也添加换行符
         nlohmann::json error_json;
         error_json["error"] = "Invalid JSON format";
         std::string error_response = error_json.dump();
@@ -358,14 +352,13 @@ bool UnixSocketServer::processClientData(int client_fd, std::string& received_da
         }
         sendResponse(client_fd, error_response);
         
-        // JSON解析错误，清除已接收数据但保持连接等待超时
+        // JSON解析错误
         received_data.clear();
         return false;
         
     } catch (const std::exception& e) {
         LOGE("Error processing message for client fd=%d: %s", client_fd, e.what());
         
-        // 严重错误响应也添加换行符
         nlohmann::json error_json;
         error_json["error"] = "Internal server error";
         std::string error_response = error_json.dump();
@@ -374,12 +367,12 @@ bool UnixSocketServer::processClientData(int client_fd, std::string& received_da
         }
         sendResponse(client_fd, error_response);
         
-        // 严重错误，立即断开连接
+        // 致命错误，断开连接
         return true;
     }
 }
 
-void UnixSocketServer::sendResponse(int client_fd, const std::string& response) {
+void UnixSocketServer::sendResponse(int client_fd, const std::string& response) {   //发送响应
     if (response.empty()) {
         LOGD("Empty response, nothing to send");
         return;
@@ -416,7 +409,7 @@ void UnixSocketServer::sendResponse(int client_fd, const std::string& response) 
     }
 }
 
-void UnixSocketServer::sendErrorResponse(int client_fd, const std::string& error_message) {
+void UnixSocketServer::sendErrorResponse(int client_fd, const std::string& error_message) { //发送错误
     LOGD("Sending error response to client fd=%d: %s", client_fd, error_message.c_str());
     
     nlohmann::json error_json;

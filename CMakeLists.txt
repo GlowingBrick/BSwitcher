@@ -1,84 +1,85 @@
 cmake_minimum_required(VERSION 3.15)
 project(BSwitcher)
 
-# 设置C++标准
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 17)  #C++17足够了
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(NOT DEFINED ENV{ANDROID_NDK})
     message(FATAL_ERROR "ANDROID_NDK environment variable is not set")
 endif()
 
-set(ANDROID_NDK $ENV{ANDROID_NDK})
-
-# 设置交叉编译工具链
+set(ANDROID_NDK $ENV{ANDROID_NDK})  #ndk
 set(CMAKE_CXX_COMPILER ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android29-clang++)
 
-# 设置编译模式（Debug/Release）
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Ofast -flto")
 
-#add_compile_definitions(
-#    PRINTLOG
-#)
-
-# 设置输出目录
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# 包含目录
-include_directories(
-    include
-    include/JSONSocketModule
-    )
-include_directories(lib)
-
-# 添加nlohmann/json库
+# ===========================nlohmann/json======================
 add_library(nlohmann_json INTERFACE)
 target_include_directories(nlohmann_json INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/json/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/json
+    lib/json/include
 )
 
-# 添加主可执行文件
+# ============================JSONSocket========================= 
+add_library(JSONSocket STATIC
+    src/JSONSocket/JSONSocket.cpp
+    src/JSONSocket/UnixSocketServer/UnixSocketServer.cpp
+)
+
+target_include_directories(JSONSocket PUBLIC
+    src/JSONSocket
+    src/JSONSocket/UnixSocketServer
+    src/common
+)
+
+target_link_libraries(JSONSocket PRIVATE nlohmann_json)
+
+target_compile_options(JSONSocket PRIVATE -Wall -Wextra -pedantic)
+
+# ===============================主程序=============================
 add_executable(${PROJECT_NAME}
     src/main.cpp
-    src/UnixSocketServer.cpp
-    src/JSONSocket.cpp
     src/ForegroundApp.cpp
 )
 
-# 链接库
-target_link_libraries(${PROJECT_NAME}
-    PRIVATE log
+target_include_directories(${PROJECT_NAME} PRIVATE
+    src
+    src/JSONSocketModule
+    src/common
+)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    log
     nlohmann_json
+    JSONSocket
     -static-libstdc++
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -pedantic)
 
-# 添加 socket_send 工具可执行文件（静态链接）
+# ============================socket_send=============================
 add_executable(socket_send
     tool/dontHaveNc.cpp
 )
 
-# 设置 socket_send 的编译和链接选项
 target_compile_options(socket_send PRIVATE -Wall -Wextra -pedantic)
 target_link_libraries(socket_send
     PRIVATE
     -static-libstdc++
 )
 
-# 设置 socket_send 的链接标志为静态链接
 set_target_properties(socket_send PROPERTIES
-    LINK_FLAGS "-static"
+    LINK_FLAGS "-static"    # 最大兼容性，静态链接
 )
 
-# 复制module文件夹到构建目录
+# ===========================module=================================
 add_custom_target(copy_module ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/module
@@ -86,7 +87,7 @@ add_custom_target(copy_module ALL
     COMMENT "Copying module directory to build directory"
 )
 
-# 构建web UI
+# ============================web UI================================
 add_custom_target(build_webui ALL
     COMMAND npm install
     COMMAND npm run build
@@ -94,7 +95,8 @@ add_custom_target(build_webui ALL
     COMMENT "Building web UI"
 )
 
-# 复制dist到module/webroot
+#=========================打包=============================
+# 复制文件
 add_custom_target(copy_dist ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/webui/dist
@@ -103,7 +105,6 @@ add_custom_target(copy_dist ALL
     DEPENDS build_webui
 )
 
-# 复制主二进制文件到module目录
 add_custom_target(copy_binary ALL
     COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_BINARY_DIR}/bin/${PROJECT_NAME}
@@ -112,7 +113,6 @@ add_custom_target(copy_binary ALL
     DEPENDS ${PROJECT_NAME}
 )
 
-# 复制 socket_send 工具到module目录
 add_custom_target(copy_socket_send ALL
     COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_BINARY_DIR}/bin/socket_send
@@ -121,11 +121,18 @@ add_custom_target(copy_socket_send ALL
     DEPENDS socket_send
 )
 
-# 打包
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(ZIP_FILENAME "BSwitcher_module_debug.zip")
+else()
+    set(ZIP_FILENAME "BSwitcher_module_release.zip")
+endif()
+
+
+# 压缩
 add_custom_target(create_zip ALL
-    COMMAND ${CMAKE_COMMAND} -E tar cf ${CMAKE_BINARY_DIR}/BSwitcher_module.zip --format=zip .
+    COMMAND ${CMAKE_COMMAND} -E tar cf ${CMAKE_BINARY_DIR}/${ZIP_FILENAME} --format=zip .
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/module
-    COMMENT "Creating BSwitcher_module.zip"
+    COMMENT "Creating ${ZIP_FILENAME}"
     DEPENDS copy_module copy_dist copy_binary copy_socket_send
 )
 

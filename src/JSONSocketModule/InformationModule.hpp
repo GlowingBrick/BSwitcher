@@ -1,4 +1,8 @@
-#include "JSONSocket.hpp"
+/*维护用于前端显示的信息*/
+#ifndef INFO_MODULE_HPP
+#define INFO_MODULE_HPP
+
+#include "JSONSocket/JSONSocket.hpp"
 #include <string>
 #include <mutex>
 
@@ -92,3 +96,5 @@ public:
     }
     
 };
+
+#endif

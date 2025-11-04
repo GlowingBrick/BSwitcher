@@ -1,7 +1,6 @@
-/*****************************************
- * This module is designed to provide automated monitoring and processing of JSON transmission through Unix sockets.
- * Developed by DeepSeek under the supervision and guidance of BCK.
-*****************************************/
+/*提供一个简单的UnixSocket服务维护*/
+/*并且在其中吞吐JSON*/
+
 #ifndef UNIX_SOCKET_SERVER_HPP
 #define UNIX_SOCKET_SERVER_HPP
 
