@@ -1,3 +1,5 @@
+//用于监视系统电源状态
+//顺便检查屏幕
 #ifndef POWERMONITORTARGET_HPP
 #define POWERMONITORTARGET_HPP
 
@@ -52,9 +54,22 @@ private:
     }
 
     bool __read_screen_status() {
-        char screen_status_char = 0;
-        pread(screen_fd_, &screen_status_char, 1, 0);
-        return screen_status_char != '0';
+        char buffer[128];
+        int line_count = 0;
+        ssize_t bytes_read;
+
+        if((bytes_read = pread(screen_fd_, buffer, sizeof(buffer), 0)) > 0) {
+            for (ssize_t i = 0; i < bytes_read; i++) {
+                if (buffer[i] == '\n') {
+                    line_count++;
+                    if (line_count >= 5) {  ///dev/cpuset/restricted/cgroup.procs大于5条时即可认为熄屏
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;    //不可用时认为亮屏，避免干扰
     }
 
     bool read_screen_status() {  //写入共享变量
@@ -137,8 +152,8 @@ private:
                 }
             }
 
-            if (!read_screen_status()) {                       //熄屏时
-                stop_.store(true, std::memory_order_relaxed);  //准备自我阻塞
+            if (!screen_status.load(std::memory_order_relaxed)) {  //熄屏时
+                stop_.store(true, std::memory_order_relaxed);      //准备自我阻塞
                 continue;
             }
 
@@ -151,7 +166,7 @@ private:
 
             pread(status_fd_, &battery_status, 1, 0);
 
-            if (battery_status == 'C') {  //充电时不统计
+            if (battery_status == 'C' || battery_status == 'F') {  //充电时不统计
                 clock_gettime(CLOCK_MONOTONIC, &last_time);
                 continue;
             }
@@ -234,7 +249,7 @@ private:
 public:
     PowerMonitorTarget(std::string* current_app_ptr) {
         current_app_ptr_ = current_app_ptr;  //放弃线程安全，反正不会有致命错误
-        screen_fd_ = open("/sys/class/backlight/panel0-backlight/brightness", O_RDONLY | O_CLOEXEC);
+        screen_fd_ = open("/dev/cpuset/restricted/cgroup.procs", O_RDONLY | O_CLOEXEC);
     }
 
     ~PowerMonitorTarget() {
@@ -315,15 +330,15 @@ public:
         if (running_.load(std::memory_order_relaxed) == false) {  //如果没有启用监视
             return __read_screen_status();
         }
+        bool ss = read_screen_status();
 
-        if (stop_.load(std::memory_order_relaxed)) {
-            if (read_screen_status()) {
+        if (stop_.load(std::memory_order_relaxed)) {  //如果监视线程休眠
+            if (ss) {                                 //如果亮屏
                 stop_.store(false);
                 cv_.notify_all();  //唤醒
             }
         }
-
-        return screen_status.load(std::memory_order_relaxed);
+        return ss;
     }
 
     bool isRunning() const {

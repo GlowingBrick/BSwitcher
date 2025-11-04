@@ -10,6 +10,8 @@
 #include <fstream>
 #include <sched.h>
 #include <stdio.h>
+#include <chrono>
+#include <thread>
 
 class TopAppDetector {
 private:
@@ -20,6 +22,7 @@ private:
     DetectorFunc workingFunction;  //真正工作的函数
 
     std::string __getForegroundApp_backup();
+    std::string __getForegroundApp_lru();  //lru兼容更旧的系统，但是分屏时不准
     void __initIndentationConfig();
     std::string __getForegroundApp();
 

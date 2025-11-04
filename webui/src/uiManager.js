@@ -1,10 +1,12 @@
 // UI管理器
 import { InfoManager } from './infoManager.js';
 import { pathConfig } from './pathConfig.js';
+import { SocketClient } from './socketClient.js';
 
 export class UIManager {
     constructor(configManager, appLoader) {
         this.configManager = configManager;
+        this.socketClient =new SocketClient();
         this.appLoader = appLoader;
         this.infoManager = new InfoManager();
         
@@ -379,24 +381,22 @@ export class UIManager {
 
     // 加载功耗数据
     async loadPowerData() {
-        const { exec } = await import('./ksu.js');
         
         const request = {
             target: 'powerdata',
             mode: 'read'
         };
-        
+        /*
         const requestJson = JSON.stringify(request);
         const escapedJson = requestJson.replace(/'/g, "'\\''").replace(/\n/g, ' ').replace(/\r/g, ' ');
         const command = `echo '${escapedJson}' | nc -U /dev/BSwitcher`;
         
         const result = await exec(command);
-        
-        if (result.errno === 0 && result.stdout) {
-            return JSON.parse(result.stdout);
-        } else {
-            throw new Error(result.stderr || '获取功耗数据失败');
-        }
+        */
+        const result = await this.socketClient.communicate(request);
+
+        return result;
+
     }
 
     // 显示功耗加载状态

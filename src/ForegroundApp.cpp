@@ -4,7 +4,7 @@
 *****************************************/
 #include <ForegroundApp.hpp>
 
-std::string TopAppDetector::__getForegroundApp_backup() {  //备用方案
+std::string TopAppDetector::__getForegroundApp_backup() {  //使用grep的备用方案
     std::string packageName;
     LOGD("Getting ForegroundApp");
     FILE* pipe = popen("dumpsys activity activities | grep '^[[:space:]]*mTopFullscreen'", "r");
@@ -62,14 +62,11 @@ void TopAppDetector::__initIndentationConfig() {  //启动时预先统计标签�
     g_mTopFullscreenIndent = __countLeadingSpaces(buffer);
     pclose(pipe);
 
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     pipe = popen("dumpsys activity activities | grep -E 'DisplayPolicy'", "r");
     fgets(buffer, sizeof(buffer), pipe);
     g_displayPolicyIndent = __countLeadingSpaces(buffer);
     pclose(pipe);
-
-    // 设置默认值（如果未检测到）
-    if (g_displayPolicyIndent < 0) g_displayPolicyIndent = 2;
-    if (g_mTopFullscreenIndent < 0) g_mTopFullscreenIndent = 4;
 
     LOGD("Detected indentation: DisplayPolicy=%d, mTopFullscreen=%d",
          g_displayPolicyIndent, g_mTopFullscreenIndent);
@@ -128,19 +125,89 @@ std::string TopAppDetector::__getForegroundApp() {  //手动筛选，理论上�
     return result;
 }
 
-std::string TopAppDetector::__preProcessing() {
+std::string TopAppDetector::__getForegroundApp_lru() {  //lru兼容更旧的系统，但是分屏时不准
+    FILE* pipe = popen("dumpsys activity lru", "r");
+    if (!pipe) return "";
+
+    char buffer[256];
+    int lineCount = 0;
+    std::string result;
+
+    while (fgets(buffer, sizeof(buffer), pipe)) {
+        if (++lineCount == 3) {
+            size_t len = strlen(buffer);
+            size_t startPos = 0;
+            size_t endPos = 0;
+
+            for (size_t i = 16; i < len; ++i) {
+                if (buffer[i] == ':') {
+                    startPos = i + 1;                       //包名起始点
+                } else if (buffer[i] == '/' && startPos) {  //包名结束
+                    endPos = i;
+                    break;
+                }
+            }
+
+            //确保是TOP
+            if (startPos && endPos && endPos > startPos) {
+                bool foundValidTOP = false;
+                for (int i = startPos - 4; i >= 0; --i) {
+                    if (i + 3 < startPos &&
+                        buffer[i] == 'T' &&
+                        buffer[i + 1] == 'O' &&
+                        buffer[i + 2] == 'P') {
+                        if (i == 0 || buffer[i - 1] != 'B') {
+                            foundValidTOP = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (foundValidTOP) {
+                    result.assign(buffer + startPos, endPos - startPos);
+                }
+            }
+
+            break;
+        }
+    }
+    pclose(pipe);
+    return result;
+}
+
+std::string TopAppDetector::__preProcessing() { //在这里测试几个不同方法，然后调整指针固化
+    static int j = 0;  //记录dumpsys activity activities失败的次数
+
+    std::string a = __getForegroundApp_backup();
+    if (!a.empty()) {  //检查dumpsys activity activities是否可用
+        j = -1;
+    } else {
+        if (j >= 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            std::string c = __getForegroundApp_lru();
+            if (!c.empty()) {
+                ++j;
+            }
+            if (j >= 5) {
+                LOGD("activities unavailable,Using lru instead.");
+                workingFunction = &TopAppDetector::__getForegroundApp_lru;
+            }
+            return c;
+        }
+    }
+
     if (g_displayPolicyIndent < 0 || g_mTopFullscreenIndent < 0) {
         __initIndentationConfig();
     }
+
     if (g_displayPolicyIndent < 0 || g_mTopFullscreenIndent < 0) {
-        return __getForegroundApp_backup();
+        return a;
     }
 
-    static int i = 0;  //记录失败的次数
-
-    std::string a = __getForegroundApp_backup();
-    std::string b = __getForegroundApp();
-    if (!a.empty() && b.empty()) {
+    static int i = 0;  //记录手动检索失败的次数
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::string b = __getForegroundApp();  
+    if (!a.empty() && b.empty()) {  //检查dumpsys activity activities的手动版本是否可用
         ++i;
     }
 

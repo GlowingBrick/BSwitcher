@@ -143,7 +143,7 @@ public:
 
 private:
 
-    static bool clearEvents() {
+    static bool clearEvents() { //不关心发生了什么，总之发生过就行
         const size_t buffer_size = 1024;
         char buffer[buffer_size];
         

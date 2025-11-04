@@ -14,7 +14,6 @@ set(ANDROID_NDK $ENV{ANDROID_NDK})
 # 设置交叉编译工具链
 set(CMAKE_CXX_COMPILER ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android29-clang++)
 
-
 # 设置编译模式（Debug/Release）
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -38,7 +37,6 @@ include_directories(
     )
 include_directories(lib)
 
-
 # 添加nlohmann/json库
 add_library(nlohmann_json INTERFACE)
 target_include_directories(nlohmann_json INTERFACE
@@ -46,8 +44,7 @@ target_include_directories(nlohmann_json INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/json
 )
 
-
-# 添加可执行文件
+# 添加主可执行文件
 add_executable(${PROJECT_NAME}
     src/main.cpp
     src/UnixSocketServer.cpp
@@ -56,13 +53,30 @@ add_executable(${PROJECT_NAME}
 )
 
 # 链接库
-target_link_libraries(${PROJECT_NAME} 
+target_link_libraries(${PROJECT_NAME}
     PRIVATE log
     nlohmann_json
+    -static-libstdc++
 )
 
-
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -pedantic)
+
+# 添加 socket_send 工具可执行文件（静态链接）
+add_executable(socket_send
+    tool/dontHaveNc.cpp
+)
+
+# 设置 socket_send 的编译和链接选项
+target_compile_options(socket_send PRIVATE -Wall -Wextra -pedantic)
+target_link_libraries(socket_send
+    PRIVATE
+    -static-libstdc++
+)
+
+# 设置 socket_send 的链接标志为静态链接
+set_target_properties(socket_send PROPERTIES
+    LINK_FLAGS "-static"
+)
 
 # 复制module文件夹到构建目录
 add_custom_target(copy_module ALL
@@ -89,13 +103,22 @@ add_custom_target(copy_dist ALL
     DEPENDS build_webui
 )
 
-# 复制二进制文件到module目录
+# 复制主二进制文件到module目录
 add_custom_target(copy_binary ALL
     COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_BINARY_DIR}/bin/${PROJECT_NAME}
         ${CMAKE_BINARY_DIR}/module/${PROJECT_NAME}
-    COMMENT "Copying binary to module directory"
+    COMMENT "Copying main binary to module directory"
     DEPENDS ${PROJECT_NAME}
+)
+
+# 复制 socket_send 工具到module目录
+add_custom_target(copy_socket_send ALL
+    COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_BINARY_DIR}/bin/socket_send
+        ${CMAKE_BINARY_DIR}/module/socket_send
+    COMMENT "Copying socket_send tool to module directory"
+    DEPENDS socket_send
 )
 
 # 打包
@@ -103,9 +126,11 @@ add_custom_target(create_zip ALL
     COMMAND ${CMAKE_COMMAND} -E tar cf ${CMAKE_BINARY_DIR}/BSwitcher_module.zip --format=zip .
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/module
     COMMENT "Creating BSwitcher_module.zip"
-    DEPENDS copy_module copy_dist copy_binary
+    DEPENDS copy_module copy_dist copy_binary copy_socket_send
 )
 
+# 设置依赖关系
 add_dependencies(copy_dist copy_module)
 add_dependencies(copy_binary copy_module)
-add_dependencies(create_zip copy_dist copy_binary)
+add_dependencies(copy_socket_send copy_module)
+add_dependencies(create_zip copy_dist copy_binary copy_socket_send)

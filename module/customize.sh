@@ -13,4 +13,15 @@ migrate_bswitcher_config() {
     fi
 }
 
+if /system/bin/nc --help 2>&1 | grep -q -e "-U"; then
+rm $MODPATH/socket_send
+else
+ui_print "系统不支持nc -U,使用内置方案"
+mkdir -p $MODPATH/system/bin
+mv $MODPATH/socket_send $MODPATH/system/bin/socket_send
+set_perm $MODPATH/system/bin/socket_send 0 0 0755
+fi
+set_perm $MODPATH/apt
+set_perm $MODPATH/BSwitcher
+
 migrate_bswitcher_config
