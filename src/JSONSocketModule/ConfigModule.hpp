@@ -4,18 +4,18 @@
 
 #include "JSONSocket/JSONSocket.hpp"
 #include <fstream>
-#include <vector>
-#include <string>
 #include <mutex>
+#include <string>
+#include <vector>
 
 // 文件配置目标基类
 class FileConfigTarget : public ConfigTarget {
 protected:
     std::string filename;
-    
+
 public:
     explicit FileConfigTarget(const std::string& filename) : filename(filename) {}
-    
+
     nlohmann::json write(const nlohmann::json& data) override {
         try {
             std::ofstream file(filename);
@@ -30,7 +30,7 @@ public:
             return {{"status", "error"}, {"message", "Failed to write file"}};
         }
     }
-    
+
     nlohmann::json read() const override {
         try {
             std::ifstream file(filename);
@@ -62,10 +62,10 @@ public:
         bool power_monitoring;
         bool using_inotify;
     } config;
-    
+
     // 互斥锁 - 公开访问
     mutable std::mutex configMutex;
-    bool modify;    //标记是否修改
+    bool modify;  //标记是否修改
 private:
     // 默认配置
     const nlohmann::json DEFAULT_CONFIG = {
@@ -76,21 +76,20 @@ private:
         {"mode_file", ""},
         {"screen_off", "powersave"},
         {"power_monitoring", true},
-        {"using_inotify", true}
-    };
-    
+        {"using_inotify", true}};
+
     void loadFromFile() {
         auto fileData = FileConfigTarget::read();
         bool hasValidData = false;
-        
+
         // 检查文件是否包含有效数据
         if (!fileData.is_null() && fileData.is_object()) {
             hasValidData = true;
         }
-        
+
         {
             std::lock_guard<std::mutex> lock(configMutex);
-            
+
             if (hasValidData) {
                 // 逐项加载，缺失的项使用默认值
                 config.poll_interval = fileData.value("poll_interval", DEFAULT_CONFIG["poll_interval"]);
@@ -112,15 +111,15 @@ private:
                 config.power_monitoring = DEFAULT_CONFIG["power_monitoring"];
                 config.using_inotify = DEFAULT_CONFIG["config.using_inotify ="];
             }
-            modify=true;
+            modify = true;
         }
-        
+
         // 如果文件不存在或数据不完整，不立即写入，等待前端修改时再写入
         if (!hasValidData) {
             LOGW("Config file %s is missing or invalid, using default values", filename.c_str());
         }
     }
-    
+
     nlohmann::json writeToFile() {
         nlohmann::json fileData;
         {
@@ -136,16 +135,16 @@ private:
         }
         return FileConfigTarget::write(fileData);
     }
-    
+
 public:
     MainConfigTarget() : FileConfigTarget("config.json") {
         loadFromFile();
     }
-    
+
     std::string getName() const override {
         return "config";
     }
-    
+
     nlohmann::json read() const override {
         std::lock_guard<std::mutex> lock(configMutex);
         nlohmann::json result;
@@ -159,7 +158,7 @@ public:
         result["using_inotify"] = config.using_inotify;
         return result;
     }
-    
+
     nlohmann::json write(const nlohmann::json& data) override {
         {
             std::lock_guard<std::mutex> lock(configMutex);
@@ -188,8 +187,8 @@ public:
                 config.using_inotify = data.value("using_inotify", config.using_inotify);
             }
         }
-        modify=true;
-        
+        modify = true;
+
         return writeToFile();
     }
 };
@@ -202,38 +201,37 @@ public:
         std::string pkgName;
         std::string mode;
     };
-    
+
     struct SchedulerConfig {
         std::string defaultMode;
         std::vector<AppMode> apps;
     } config;
-    
+
     // 互斥锁 - 公开访问
     mutable std::mutex configMutex;
-    
+
 private:
     // 默认配置
     const nlohmann::json DEFAULT_CONFIG = {
         {"defaultMode", "performance"},
-        {"rules", nlohmann::json::array()}
-    };
-    
+        {"rules", nlohmann::json::array()}};
+
     void loadFromFile() {
         auto fileData = FileConfigTarget::read();
         bool hasValidData = false;
-        
+
         // 检查文件是否包含有效数据
         if (!fileData.is_null() && fileData.is_object()) {
             hasValidData = true;
         }
-        
+
         {
             std::lock_guard<std::mutex> lock(configMutex);
-            
+
             if (hasValidData) {
                 // 逐项加载，缺失的项使用默认值
                 config.defaultMode = fileData.value("defaultMode", DEFAULT_CONFIG["defaultMode"]);
-                
+
                 config.apps.clear();
                 if (fileData.contains("rules") && fileData["rules"].is_array()) {
                     for (const auto& rule : fileData["rules"]) {
@@ -251,19 +249,19 @@ private:
                 config.apps.clear();
             }
         }
-        
+
         // 如果文件不存在或数据不完整，不立即写入，等待前端修改时再写入
         if (!hasValidData) {
             LOGW("Scheduler config file %s is missing or invalid, using default values", filename.c_str());
         }
     }
-    
+
     nlohmann::json writeToFile() {
         nlohmann::json fileData;
         {
             std::lock_guard<std::mutex> lock(configMutex);
             fileData["defaultMode"] = config.defaultMode;
-            
+
             nlohmann::json rulesArray = nlohmann::json::array();
             for (const auto& app : config.apps) {
                 nlohmann::json rule;
@@ -275,21 +273,21 @@ private:
         }
         return FileConfigTarget::write(fileData);
     }
-    
+
 public:
     SchedulerConfigTarget() : FileConfigTarget("scheduler_config.json") {
         loadFromFile();
     }
-    
+
     std::string getName() const override {
         return "scheduler";
     }
-    
+
     nlohmann::json read() const override {
         std::lock_guard<std::mutex> lock(configMutex);
         nlohmann::json result;
         result["defaultMode"] = config.defaultMode;
-        
+
         nlohmann::json rulesArray = nlohmann::json::array();
         for (const auto& app : config.apps) {
             nlohmann::json rule;
@@ -298,26 +296,26 @@ public:
             rulesArray.push_back(rule);
         }
         result["rules"] = rulesArray;
-        
+
         return result;
     }
-    
+
     nlohmann::json write(const nlohmann::json& data) override {
         {
             std::lock_guard<std::mutex> lock(configMutex);
             if (data.contains("defaultMode")) {
-                config.defaultMode = data.value("defaultMode",config.defaultMode);
+                config.defaultMode = data.value("defaultMode", config.defaultMode);
             }
-            
+
             config.apps.clear();
             if (data.contains("rules") && data["rules"].is_array()) {
                 for (const auto& rule : data["rules"]) {
                     AppMode appMode;
                     if (rule.contains("appPackage")) {
-                        appMode.pkgName = rule.value("appPackage","");
+                        appMode.pkgName = rule.value("appPackage", "");
                     }
                     if (rule.contains("mode")) {
-                        appMode.mode = rule.value("mode","");
+                        appMode.mode = rule.value("mode", "");
                     }
                     if (!appMode.pkgName.empty() && !appMode.mode.empty()) {
                         config.apps.push_back(appMode);
@@ -325,8 +323,42 @@ public:
                 }
             }
         }
-        
+
         return writeToFile();
+    }
+};
+
+class ConfigButtonTarget : public ConfigTarget {  //按钮事件
+private:
+    std::function<std::string(const std::string&)> callback_;
+
+public:
+    ConfigButtonTarget(std::function<std::string(const std::string&)> callback)
+        : callback_(callback) {}
+
+    std::string getName() const override {
+        return "command";
+    }
+
+    nlohmann::json read() const override {
+        return {{"status", "error"}, {"message", "command is write-only, no data to read."}};
+    }
+
+    nlohmann::json write(const nlohmann::json& jsonData) override {
+        if (!jsonData.is_array()) { //检查数据
+            return {{"status", "error"}, {"message", "Unparseable Command."}};
+        }
+
+        if (jsonData.empty() || !jsonData[0].is_string()) {
+            return {{"status", "error"}, {"message", "Unparseable Command."}};
+        }
+
+        if (callback_) {
+            std::string result = callback_(jsonData[0]);
+            return {{"message", result}};
+        } else {
+            return {{"status", "error"}, {"message", "Backend not properly initialized."}};
+        }
     }
 };
 

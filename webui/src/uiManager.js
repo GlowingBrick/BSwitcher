@@ -386,13 +386,7 @@ export class UIManager {
             target: 'powerdata',
             mode: 'read'
         };
-        /*
-        const requestJson = JSON.stringify(request);
-        const escapedJson = requestJson.replace(/'/g, "'\\''").replace(/\n/g, ' ').replace(/\r/g, ' ');
-        const command = `echo '${escapedJson}' | nc -U /dev/BSwitcher`;
-        
-        const result = await exec(command);
-        */
+
         const result = await this.socketClient.communicate(request);
 
         return result;
@@ -864,6 +858,7 @@ export class UIManager {
     }
 
     // 渲染单个配置字段
+
     renderConfigField(field, config) {
         const value = config[field.key] !== undefined ? config[field.key] : '';
         const isDisabled = this.isFieldDisabled(field, config);
@@ -875,20 +870,20 @@ export class UIManager {
             case 'number':
                 fieldHtml = `
                     <input type="number" 
-                           name="${field.key}" 
-                           value="${value}" 
-                           ${field.min ? `min="${field.min}"` : ''}
-                           ${field.max ? `max="${field.max}"` : ''}
-                           ${isDisabled ? 'disabled' : ''}>
+                        name="${field.key}" 
+                        value="${value}" 
+                        ${field.min ? `min="${field.min}"` : ''}
+                        ${field.max ? `max="${field.max}"` : ''}
+                        ${isDisabled ? 'disabled' : ''}>
                 `;
                 break;
                 
             case 'checkbox':
                 fieldHtml = `
                     <input type="checkbox" 
-                           name="${field.key}" 
-                           ${value ? 'checked' : ''}
-                           ${isDisabled ? 'disabled' : ''}>
+                        name="${field.key}" 
+                        ${value ? 'checked' : ''}
+                        ${isDisabled ? 'disabled' : ''}>
                 `;
                 break;
                 
@@ -904,18 +899,29 @@ export class UIManager {
                 `;
                 break;
                 
+            case 'button':
+                fieldHtml = `
+                    <button type="button" 
+                            class="btn btn-secondary btn-small" 
+                            data-key="${field.key}"
+                            ${isDisabled ? 'disabled' : ''}>
+                        ${field.label}
+                    </button>
+                `;
+                break;
+                
             default: // text
                 fieldHtml = `
                     <input type="text" 
-                           name="${field.key}" 
-                           value="${value}" 
-                           ${isDisabled ? 'disabled' : ''}>
+                        name="${field.key}" 
+                        value="${value}" 
+                        ${isDisabled ? 'disabled' : ''}>
                 `;
         }
         
         return `
             <div class="config-item ${isDisabled ? 'disabled' : ''}">
-                <label>${field.label}</label>
+                <label>${field.type === 'button' ? '' : field.label}</label>
                 ${fieldHtml}
                 <div class="config-description">${field.description}</div>
             </div>
@@ -979,6 +985,18 @@ export class UIManager {
                 }
             }
         });
+
+        // 为所有按钮类型字段绑定点击事件
+        this.configFields.forEach(field => {
+            if (field.type === 'button') {
+                const button = configForm.querySelector(`button[data-key="${field.key}"]`);
+                if (button) {
+                    button.addEventListener('click', (event) => {
+                        this.handleConfigButtonClick(field, event);
+                    });
+                }
+            }
+        });
     }
 
     // 更新依赖字段的状态
@@ -1004,10 +1022,88 @@ export class UIManager {
         });
     }
 
-    // 获取当前表单数据（不保存）
+    // 处理配置按钮点击
+    async handleConfigButtonClick(field, event) {
+        const button = event.target;
+        const key = field.key;
+        
+        // 检查是否需要确认
+        const requireConfirmation = field.require_confirmation !== false; // 默认为true
+        
+        // 如果按钮已经在确认状态，直接执行
+        if (button.classList.contains('confirming')) {
+            await this.executeButtonAction(key, button);
+            return;
+        }
+        
+        // 如果需要确认
+        if (requireConfirmation) {
+            this.startConfirmationMode(button, field);
+        } else {
+            // 不需要确认，直接执行
+            await this.executeButtonAction(key, button);
+        }
+    }
+
+    // 启动确认模式
+    startConfirmationMode(button, field) {
+        // 保存原始状态
+        button._originalText = button.textContent;
+        button._originalClass = button.className;
+        
+        // 切换到确认状态
+        button.classList.remove('btn-secondary');
+        button.classList.add('btn-secondary-warning', 'confirming');
+        button.textContent = '确认？';
+        
+        // 设置超时恢复
+        button._confirmationTimeout = setTimeout(() => {
+            this.cancelConfirmation(button);
+        }, 5000);
+    }
+
+    // 取消确认模式
+    cancelConfirmation(button) {
+        if (button._originalClass) {
+            button.className = button._originalClass;
+        }
+        if (button._originalText) {
+            button.textContent = button._originalText;
+        }
+        button.classList.remove('confirming');
+        
+        if (button._confirmationTimeout) {
+            clearTimeout(button._confirmationTimeout);
+            button._confirmationTimeout = null;
+        }
+    }
+
+    // 执行按钮动作
+    async executeButtonAction(key, button) {
+        // 先取消确认状态（如果存在）
+        this.cancelConfirmation(button);
+        
+        try {
+            const request = {
+                target: 'command',
+                mode: 'write',
+                data: [key]
+            };
+            
+            const result = await this.socketClient.communicate(request);
+            if (result?.message) {
+                this.showToast(result.message);
+            }
+        } catch (error) {
+            this.showToast('执行操作失败: ' + error.message);
+        }
+    }
+
+    // 获取当前表单数据
     getCurrentConfigFormData() {
         const form = document.getElementById('configForm');
-        const inputs = form.querySelectorAll('input, select');
+        // 排除按钮类型的输入元素
+        const inputs = form.querySelectorAll('input:not([type="button"]), select');
         const config = {};
         
         inputs.forEach(input => {
@@ -1023,7 +1119,7 @@ export class UIManager {
         return config;
     }
 
-    // 获取配置表单数据（用于保存）
+    // 获取配置表单数据
     getConfigFormData() {
         return this.getCurrentConfigFormData();
     }

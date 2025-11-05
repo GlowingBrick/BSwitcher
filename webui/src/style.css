@@ -277,9 +277,11 @@ input[type="number"]:focus {
 /* ===== 按钮样式 ===== */
 .btn {
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.5s ease-in-out;
   border: none;
   font-weight: 600;
+  transform: scale(1);
+  transform-origin: center;
 }
 
 .btn-primary {
@@ -296,6 +298,11 @@ input[type="number"]:focus {
   color: var(--color-white);
 }
 
+.btn-secondary-warning {
+  background-color: var(--color-warning);
+  color: var(--color-white);
+}
+
 .btn-secondary:hover {
   background-color: var(--color-secondary-dark);
 }
@@ -309,6 +316,10 @@ input[type="number"]:focus {
 
 .btn-danger:hover {
   background-color: var(--color-danger-dark);
+}
+
+.btn-secondary, .btn-danger {
+  transition: all 0.3s ease-in-out;
 }
 
 .btn-warning {

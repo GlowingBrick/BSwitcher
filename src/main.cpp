@@ -1,12 +1,13 @@
 #include <main.hpp>
 
-std::shared_ptr<MainConfigTarget> mainConfigTarget;
+std::shared_ptr<MainConfigTarget> mainConfigTarget;  //所有模块
 std::shared_ptr<SchedulerConfigTarget> schedulerConfigTarget;
 std::shared_ptr<InfoConfigTarget> infoConfigTarget;
 std::shared_ptr<ApplistConfigTarget> appListTarget;
 std::shared_ptr<ConfigListTarget> configlistTarget;
 std::shared_ptr<AvailableModesTarget> availableModesTarget;
 std::shared_ptr<PowerMonitorTarget> powerMonitorTarget;
+std::shared_ptr<ConfigButtonTarget> configButtonTarget;
 
 std::string sState = "";                             //状态文件入口
 std::string sEntry = "";                             //状态脚本入口，一般/data/powercfg.sh
@@ -15,6 +16,24 @@ bool (*write_mode)(const std::string&);              //写状态函数
 bool sceneStrict = false;                            //严格scene
 std::string currentApp = "";                         //前台app
 
+void bind_to_core() {  //绑定到0 1小核
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(0, &mask);
+    CPU_SET(1, &mask);
+
+    sched_setaffinity(0, sizeof(mask), &mask);
+}
+
+std::string command_callback(const std::string& key) {  //前端中按钮的响应
+    if (key == "clear_monitoring") {
+        powerMonitorTarget->clearStats();
+        return "Success.";
+    } else {
+        return "Unknow Command";
+    }
+}
+
 int init_service() {
     mainConfigTarget = std::make_shared<MainConfigTarget>();  // 配置初始化
     schedulerConfigTarget = std::make_shared<SchedulerConfigTarget>();
@@ -22,51 +41,66 @@ int init_service() {
     appListTarget = std::make_shared<ApplistConfigTarget>();
     availableModesTarget = std::make_shared<AvailableModesTarget>();
     powerMonitorTarget = std::make_shared<PowerMonitorTarget>(&currentApp);
+    configButtonTarget = std::make_shared<ConfigButtonTarget>(command_callback);
 
-    const nlohmann::json CONFIG_SCHEMA = {// 这是可配置接口
-                                          {{"key", "low_battery_threshold"},
-                                           {"type", "number"},
-                                           {"label", "低电量阈值"},
-                                           {"description", "电池电量低于此百分比时自动切换到省电模式"},
-                                           {"min", 1},
-                                           {"max", 100},
-                                           {"category", "电源管理"}},
+    const nlohmann::json CONFIG_SCHEMA = {                                                               //定义前端的配置页面
+                                          {{"key", "low_battery_threshold"},                             //对应的key
+                                           {"type", "number"},                                           //类型
+                                           {"label", "低电量阈值"},                                      //前端显示内容
+                                           {"description", "电池电量低于此百分比时自动切换到省电模式"},  //标签
+                                           {"min", 1},                                                   //最小
+                                           {"max", 100},                                                 //最大
+                                           {"category", "电源管理"}},                                    //分类
+
                                           {{"key", "poll_interval"},
                                            {"type", "number"},
                                            {"label", "最小轮询间隔"},
                                            {"description", "检查应用状态的最小时间间隔（秒）"},
                                            {"min", 1},
-                                           {"max", 60},
+                                           {"max", 180},
                                            {"category", "基本设置"}},
+
                                           {{"key", "using_inotify"},
                                            {"type", "checkbox"},
                                            {"label", "使用inotify"},
                                            {"description", "使用inotify监听系统事件(重启生效)"},
                                            {"category", "基本设置"}},
+
                                           {{"key", "power_monitoring"},
                                            {"type", "checkbox"},
                                            {"label", "能耗监控"},
                                            {"description", "记录能耗信息"},
                                            {"category", "电源管理"}},
+
+                                          {{"key", "clear_monitoring"},
+                                           {"type", "button"},
+                                           {"label", "清空能耗记录"},
+                                           {"description", "清空现有的能耗记录"},
+                                           {"category", "电源管理"},
+                                           {"require_confirmation", true}},  //标记需要确认
+
                                           {{"key", "scene"},
                                            {"type", "checkbox"},
                                            {"label", "Scene模式"},
                                            {"description", "使用Scene的调度配置接口"},
                                            {"category", "模式设置"},
-                                           {"affects", {"mode_file", "scene_strict"}}},
+                                           {"affects", {"mode_file", "scene_strict"}}},  //影响其他项
+
                                           {{"key", "scene_strict"},
                                            {"type", "checkbox"},
                                            {"label", "严格Scene模式"},
                                            {"description", "严格模仿Scene行为"},
                                            {"category", "模式设置"},
-                                           {"dependsOn", {{"field", "scene"}, {"condition", true}}},
+                                           {"dependsOn", {{"field", "scene"}, {"condition", true}}},  //条件
                                            {"affects", {"screen_off"}}},
+
                                           {{"key", "mode_file"},
                                            {"type", "text"},
                                            {"label", "模式文件路径"},
                                            {"description", "手动指定模式配置文件路径"},
                                            {"category", "模式设置"},
                                            {"dependsOn", {{"field", "scene"}, {"condition", false}}}},
+
                                           {{"key", "screen_off"},
                                            {"type", "select"},
                                            {"label", "屏幕关闭模式"},
@@ -83,6 +117,7 @@ int init_service() {
     JSONSocket::registerConfigTarget(configlistTarget);
     JSONSocket::registerConfigTarget(availableModesTarget);
     JSONSocket::registerConfigTarget(powerMonitorTarget);
+    JSONSocket::registerConfigTarget(configButtonTarget);
 
     if (!JSONSocket::initialize("/dev/BSwitcher")) {  //启用UNIX Socket
         return 0;
@@ -200,7 +235,7 @@ int load_config() {
         } else  // 都不存在
         {
             LOGE("Configuration source (powercfg.json) not found. Scene mode has been disabled.");
-            mainConfigTarget->config.scene = false;
+            mainConfigTarget->config.scene = false; //关闭scene模式
         }
         powercfgfile.close();
     }
@@ -247,7 +282,7 @@ bool ScreenState() {
         for (ssize_t i = 0; i < bytes_read; i++) {
             if (buffer[i] == '\n') {
                 line_count++;
-                if (line_count >= 5) {  ///dev/cpuset/restricted/cgroup.procs大于5条时即可认为熄屏
+                if (line_count >= 5) {  // /dev/cpuset/restricted/cgroup.procs大于5条时即可认为熄屏
                     powerMonitorTarget->setScreenStatus(false);
                     return false;
                 }
@@ -259,7 +294,7 @@ bool ScreenState() {
     return true;  //少于5条或不可用
 }
 
-int getBatteryLevel() {
+int getBatteryLevel() { //读取电量信息
     static int battery_fd = []() {
         int fd = open("/sys/class/power_supply/battery/capacity", O_RDONLY | O_CLOEXEC);
         return (fd >= 0) ? fd : -1;
@@ -283,15 +318,6 @@ int getBatteryLevel() {
     return btl;
 }
 
-void bind_to_core() {  //绑定到0 1小核
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    CPU_SET(0, &mask);
-    CPU_SET(1, &mask);
-
-    sched_setaffinity(0, sizeof(mask), &mask);
-}
-
 int main() {
 
     if (fork() > 0) {
@@ -303,6 +329,7 @@ int main() {
     if (fork() > 0) {
         exit(0);  // 孤儿模拟器.jpg
     }
+    LOGI("BSwitcher is preparing...");
 
     if (!init_service()) {
         LOGE("Failed to initialize JSONSocket");
@@ -340,7 +367,7 @@ int main() {
 
     TopAppDetector topAppDetector;
 
-    LOGD("Enter main loop");
+    LOGD("Ready, entering main loop.");
     while (1)  // 主循环
     {
         if (unlikely(mainModify)) {  //检查配置文件是否修改

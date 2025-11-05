@@ -1,3 +1,4 @@
+/*老旧的android（似乎13以前）中老旧的toybox不支持nc -U，这是简单的备用工具*/
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -67,7 +68,6 @@ public:
     }
 };
 
-//较旧的系统中nc -U 不可用，用此程序临时替代
 // echo "{\"target\":\"scheduler\",\"mode\": \"read\"}" | ./unixsoc /dev/BSwitcher
 int main(int argc, char* argv[]) {
     // 检查参数

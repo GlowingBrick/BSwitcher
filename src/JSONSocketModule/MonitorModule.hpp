@@ -312,6 +312,7 @@ public:
     void clearStats() {
         std::lock_guard<std::mutex> lock(data_mutex_);
         app_power_map_.clear();
+        LOGI("Power consumption records cleaned up");
     }
 };
 
