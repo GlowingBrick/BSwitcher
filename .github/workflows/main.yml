@@ -1,0 +1,50 @@
+name: Build NDK Project
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code with submodules
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set up NDK
+      run: |
+        wget https://dl.google.com/android/repository/android-ndk-r27d-linux.zip
+        unzip -q android-ndk-r27d-linux.zip
+        echo "ANDROID_NDK=$PWD/android-ndk-r27d" >> $GITHUB_ENV
+
+    - name: Build both versions
+      run: |
+        # Debug build
+        mkdir -p build_debug
+        cd build_debug
+        cmake -DCMAKE_BUILD_TYPE=Debug ..
+        make -j$(nproc)
+        
+        # Release build
+        cd ..
+        mkdir -p build_release
+        cd build_release
+        cmake -DCMAKE_BUILD_TYPE=Release ..
+        make -j$(nproc)
+
+    - name: Upload Debug
+      uses: actions/upload-artifact@v4
+      with:
+        name: BSwitcher_module_debug.zip
+        path: build_debug/module/*
+        retention-days: 30
+
+    - name: Upload Release
+      uses: actions/upload-artifact@v4
+      with:
+        name: BSwitcher_module_release.zip
+        path: build_release/module/*
+        retention-days: 30
