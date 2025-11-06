@@ -1,5 +1,7 @@
 #include <main.hpp>
 
+std::shared_ptr<JSONSocket> jsonSocket;
+
 std::shared_ptr<MainConfigTarget> mainConfigTarget;  //所有模块
 std::shared_ptr<SchedulerConfigTarget> schedulerConfigTarget;
 std::shared_ptr<InfoConfigTarget> infoConfigTarget;
@@ -8,6 +10,8 @@ std::shared_ptr<ConfigListTarget> configlistTarget;
 std::shared_ptr<AvailableModesTarget> availableModesTarget;
 std::shared_ptr<PowerMonitorTarget> powerMonitorTarget;
 std::shared_ptr<ConfigButtonTarget> configButtonTarget;
+
+std::shared_ptr<FileWatcher> fileWatcher;  //管理inotify
 
 std::string sState = "";                             //状态文件入口
 std::string sEntry = "";                             //状态脚本入口，一般/data/powercfg.sh
@@ -35,6 +39,8 @@ std::string command_callback(const std::string& key) {  //前端中按钮的响�
 }
 
 int init_service() {
+    jsonSocket = std::make_shared<JSONSocket>("/dev/BSwitcher");
+
     mainConfigTarget = std::make_shared<MainConfigTarget>();  // 配置初始化
     schedulerConfigTarget = std::make_shared<SchedulerConfigTarget>();
     infoConfigTarget = std::make_shared<InfoConfigTarget>("Custom", "unknow", "0.0.0");
@@ -46,7 +52,7 @@ int init_service() {
     const nlohmann::json CONFIG_SCHEMA = {                                                               //定义前端的配置页面
                                           {{"key", "low_battery_threshold"},                             //对应的key
                                            {"type", "number"},                                           //类型
-                                           {"label", "低电量阈值"},                                      //前端显示内容
+                                           {"label", "低电量阈值"},                                      //前端显示的内容
                                            {"description", "电池电量低于此百分比时自动切换到省电模式"},  //标签
                                            {"min", 1},                                                   //最小
                                            {"max", 100},                                                 //最大
@@ -63,7 +69,7 @@ int init_service() {
                                           {{"key", "using_inotify"},
                                            {"type", "checkbox"},
                                            {"label", "使用inotify"},
-                                           {"description", "使用inotify监听系统事件(重启生效)"},
+                                           {"description", "使用inotify监听系统事件"},
                                            {"category", "基本设置"}},
 
                                           {{"key", "power_monitoring"},
@@ -110,18 +116,27 @@ int init_service() {
                                            {"dependsOn", {{"field", "scene_strict"}, {"condition", false}}}}};
     configlistTarget = std::make_shared<ConfigListTarget>(CONFIG_SCHEMA);
 
-    JSONSocket::registerConfigTarget(mainConfigTarget);  // 注册所有socket模块
-    JSONSocket::registerConfigTarget(schedulerConfigTarget);
-    JSONSocket::registerConfigTarget(infoConfigTarget);
-    JSONSocket::registerConfigTarget(appListTarget);
-    JSONSocket::registerConfigTarget(configlistTarget);
-    JSONSocket::registerConfigTarget(availableModesTarget);
-    JSONSocket::registerConfigTarget(powerMonitorTarget);
-    JSONSocket::registerConfigTarget(configButtonTarget);
+    jsonSocket->registerConfigTarget(mainConfigTarget);  // 注册所有模块
+    jsonSocket->registerConfigTarget(schedulerConfigTarget);
+    jsonSocket->registerConfigTarget(infoConfigTarget);
+    jsonSocket->registerConfigTarget(appListTarget);
+    jsonSocket->registerConfigTarget(configlistTarget);
+    jsonSocket->registerConfigTarget(availableModesTarget);
+    jsonSocket->registerConfigTarget(powerMonitorTarget);
+    jsonSocket->registerConfigTarget(configButtonTarget);
 
-    if (!JSONSocket::initialize("/dev/BSwitcher")) {  //启用UNIX Socket
+    if (!jsonSocket->initialize()) {  //启动UNIX Socket
         return 0;
     }
+
+    const std::vector<std::string> inotifyFiles = {
+        "/dev/cpuset/top-app/cgroup.procs",     // 前台变化时响应
+        "/dev/cpuset/top-app/tasks",            //有时候有用
+        "/dev/cpuset/restricted/cgroup.procs",  // 熄屏时响应
+        "/dev/cpuset/restricted/tasks"};        //可能有用
+
+    fileWatcher = std::make_shared<FileWatcher>(inotifyFiles);
+
     return 1;
 }
 
@@ -165,6 +180,12 @@ int load_config() {
         sleepDuring = std::chrono::microseconds(100);
     } else {
         sleepDuring = std::chrono::microseconds((mainConfigTarget->config.poll_interval - 1) * 1000);  // 定义时间间隔
+    }
+
+    if (mainConfigTarget->config.using_inotify) {
+        fileWatcher->initialize();
+    } else {
+        fileWatcher->cleanup();
     }
 
     write_mode = dummy_write_mode;  // 防段错误
@@ -235,7 +256,7 @@ int load_config() {
         } else  // 都不存在
         {
             LOGE("Configuration source (powercfg.json) not found. Scene mode has been disabled.");
-            mainConfigTarget->config.scene = false; //关闭scene模式
+            mainConfigTarget->config.scene = false;  //关闭scene模式
         }
         powercfgfile.close();
     }
@@ -294,7 +315,7 @@ bool ScreenState() {
     return true;  //少于5条或不可用
 }
 
-int getBatteryLevel() { //读取电量信息
+int getBatteryLevel() {  //读取电量信息
     static int battery_fd = []() {
         int fd = open("/sys/class/power_supply/battery/capacity", O_RDONLY | O_CLOEXEC);
         return (fd >= 0) ? fd : -1;
@@ -341,21 +362,6 @@ int main() {
     std::string newMode;
     std::string lastMode = "";
 
-    bool usinotify = true;
-    {
-        std::lock_guard<std::mutex> lock(mainConfigTarget->configMutex);
-        usinotify = mainConfigTarget->config.using_inotify;  //提前取出inotify
-    }
-
-    if (usinotify) {
-        std::vector<std::string> files_to_watch = {
-            "/dev/cpuset/top-app/cgroup.procs",     // 前台变化时响应
-            "/dev/cpuset/top-app/tasks",            //有时候有用
-            "/dev/cpuset/restricted/cgroup.procs",  // 熄屏时响应
-            "/dev/cpuset/restricted/tasks"};        //可能有用
-        FileWatcher::initialize(files_to_watch);
-    }
-
     auto& mainModify = mainConfigTarget->modify;
     auto& mainConfig = mainConfigTarget->config;
     auto& mainMutex = mainConfigTarget->configMutex;
@@ -386,7 +392,7 @@ int main() {
         }
 
         std::this_thread::sleep_for(sleepDuring);              //等待
-        FileWatcher::wait(timeset);                            // 阻塞等待cgroup变化
+        fileWatcher->wait(timeset);                            // 阻塞等待cgroup变化
         std::this_thread::sleep_for(std::chrono::seconds(1));  // 等1秒防抖，避免出现none
 
         {
@@ -442,7 +448,7 @@ int main() {
     }
 
     powerMonitorTarget->stop();  // 应该运行不到这
-    JSONSocket::stop();
+    jsonSocket->stop();
     LOGE("Main function abnormal exit");
     exit(-1);
     return 0;

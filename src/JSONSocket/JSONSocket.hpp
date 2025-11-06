@@ -1,5 +1,3 @@
-/*依靠UnixSocketServer.hpp，为前端传入的json指令解析与执行*/
-
 #ifndef JSON_SOCKET_HPP
 #define JSON_SOCKET_HPP
 
@@ -30,29 +28,43 @@ using ConfigTargetPtr = std::shared_ptr<ConfigTarget>;
 
 class JSONSocket {
 private:
-    static std::unique_ptr<UnixSocketServer> server;
-    static std::atomic<bool> initialized;
-    static std::string socketPath;
+    std::unique_ptr<UnixSocketServer> server;
+    std::atomic<bool> initialized;
+    std::string socketPath;
 
-    // 配置目标管理器
-    static std::unordered_map<std::string, ConfigTargetPtr> configTargets;
+    // 实例管理器
+    std::unordered_map<std::string, ConfigTargetPtr> configTargets;
 
 public:
-    // 初始化函数
-    static bool initialize(const std::string& socket_path = "/tmp/JSONSocket");
+    JSONSocket(const std::string& socket_path = "/tmp/JSONSocket");
+    ~JSONSocket();
     
-    static void stop();
-    static bool isRunning();
+    // 禁止拷贝和赋值
+    JSONSocket(const JSONSocket&) = delete;
+    JSONSocket& operator=(const JSONSocket&) = delete;
+    JSONSocket(JSONSocket&&) = delete;
+    JSONSocket& operator=(JSONSocket&&) = delete;
+
+    // 初始化函数
+    bool initialize();
+    void stop();
+    bool isRunning() const;
     
     // 注册配置目标
-    static bool registerConfigTarget(const ConfigTargetPtr& target);
+    bool registerConfigTarget(const ConfigTargetPtr& target);
     
     // 注销配置目标
-    static bool unregisterConfigTarget(const std::string& name);
+    bool unregisterConfigTarget(const std::string& name);
+    
+    // 获取已注册的目标数量
+    size_t getTargetCount() const { return configTargets.size(); }
+    
+    // 获取socket路径
+    const std::string& getSocketPath() const { return socketPath; }
 
 private:
     // 请求处理
-    static std::string handleRequest(const nlohmann::json& request);
+    std::string handleRequest(const nlohmann::json& request);
 };
 
-#endif // JSON_SOCKET_H
+#endif // JSON_SOCKET_HPP

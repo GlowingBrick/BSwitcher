@@ -1,32 +1,28 @@
-/*依靠UnixSocketServer.hpp，为前端传入的json指令解析与执行*/
-
 #include "JSONSocket.hpp"
 
-// 静态成员定义
-std::unique_ptr<UnixSocketServer> JSONSocket::server = nullptr;
-std::atomic<bool> JSONSocket::initialized = false;
-std::string JSONSocket::socketPath = "/tmp/JSONSocket";
+JSONSocket::JSONSocket(const std::string& socket_path) 
+    : initialized(false), socketPath(socket_path) {
 
-// 配置目标管理器
-std::unordered_map<std::string, ConfigTargetPtr> JSONSocket::configTargets;
+    // 创建socket服务器
+    auto callback = [this](const nlohmann::json& request) -> std::string {
+        return this->handleRequest(request);
+    };
 
-bool JSONSocket::initialize(const std::string& socket_path) {
+    server = std::make_unique<UnixSocketServer>(socketPath, callback, std::chrono::seconds(30));
+    LOGD("JSONSocket created with socket path: %s", socketPath.c_str());
+}
+
+JSONSocket::~JSONSocket() {
+    stop();
+    LOGD("JSONSocket destroyed");
+}
+
+bool JSONSocket::initialize() {
     if (initialized) {
         LOGW("JSONSocket already initialized");
         return true;
     }
-
     LOGI("JSONSocket initializing...");
-
-    // 设置socket路径
-    socketPath = socket_path;
-
-    // 创建socket服务器
-    auto callback = [](const nlohmann::json& request) -> std::string {
-        return handleRequest(request);
-    };
-
-    server = std::make_unique<UnixSocketServer>(socketPath, callback, std::chrono::seconds(30));
 
     // 启动服务器
     if (server->start()) {
@@ -52,7 +48,7 @@ void JSONSocket::stop() {
     LOGI("JSONSocket stopped");
 }
 
-bool JSONSocket::isRunning() {
+bool JSONSocket::isRunning() const {
     return initialized && server && server->isRunning();
 }
 
@@ -109,7 +105,7 @@ std::string JSONSocket::handleRequest(const nlohmann::json& request) {
         auto target = it->second;
 
         if (mode == "read") {
-            nlohmann::json result = target->read();
+            nlohmann::json result = target->read(); //read事件
             LOGD("%s read response: %s", targetName.c_str(), result.dump().c_str());
             return result.dump();
             
@@ -121,8 +117,7 @@ std::string JSONSocket::handleRequest(const nlohmann::json& request) {
                 return error_response.dump();
             }
             
-            // 直接调用write，让模块自己处理只读逻辑
-            nlohmann::json result = target->write(request["data"]);
+            nlohmann::json result = target->write(request["data"]); //write事件
             LOGD("%s write response: %s", targetName.c_str(), result.dump().c_str());
             return result.dump();
         } else {
