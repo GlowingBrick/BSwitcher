@@ -40,7 +40,7 @@ private:
 
     std::string sState = "";                                                  //状态文件入口
     std::string sEntry = "";                                                  //状态脚本入口，一般/data/powercfg.sh
-    std::chrono::microseconds sleepDuring = std::chrono::microseconds(1000);  //休眠时间
+    std::chrono::milliseconds sleepDuring = std::chrono::milliseconds(1000);  //休眠时间
 
     std::function<bool(const std::string&)> write_mode;  //写状态函数
 

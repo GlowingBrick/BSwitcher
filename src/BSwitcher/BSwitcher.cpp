@@ -96,9 +96,9 @@ int BSwitcher::load_config() {                                         //在此�
     }
 
     if (mainConfigTarget->config.poll_interval <= 1) {  //间隔时间为1以下时
-        sleepDuring = std::chrono::microseconds(100);
+        sleepDuring = std::chrono::milliseconds(100);
     } else {
-        sleepDuring = std::chrono::microseconds((mainConfigTarget->config.poll_interval - 1) * 1000);  // 定义时间间隔
+        sleepDuring = std::chrono::milliseconds((mainConfigTarget->config.poll_interval - 1) * 1000);  // 定义时间间隔
     }
 
     if (mainConfigTarget->config.using_inotify) {
@@ -129,9 +129,9 @@ int BSwitcher::load_config() {                                         //在此�
                         nlohmann::json powercfg;
                         powercfgfile >> powercfg;
 
-                        std::string sauthor = "Undefined";
-                        std::string sname = "Undefined";
-                        std::string sversion = "Undefined";
+                        std::string sauthor = "Unknow Name";
+                        std::string sname = "Unknow";
+                        std::string sversion = "Unknow";
 
                         if (powercfg.contains("entry")) {  // 检查是否存在entry字段
                             sEntry = powercfg["entry"];
@@ -164,7 +164,7 @@ int BSwitcher::load_config() {                                         //在此�
                         }
 
                         infoConfigTarget->setData(sname, sauthor, sversion);  // 装载进配置
-                        LOGD("Config loaded");
+
                     } catch (const nlohmann::json::exception& e) {
                         LOGE("Configuration source (powercfg.json) parsing failed.");
                     }
@@ -212,6 +212,7 @@ int BSwitcher::load_config() {                                         //在此�
             LOGI("Strict Scene Enabled");
         }
     }
+    LOGD("Config loaded");
     return 0;
 }
 
@@ -303,10 +304,11 @@ void BSwitcher::main_loop() {
                         if (load_config() == 0) {
                             break;
                         }
+                        mainModify = false;
                     }
                 }
             }
-            mainModify = false;
+            mainModify = false; //清除修改标记
             lastMode = "";
         }
 

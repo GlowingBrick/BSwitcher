@@ -6,17 +6,13 @@ import { UIManager } from './uiManager.js';
 // 初始化应用
 async function initApp() {
     try {
-        console.log('正在初始化应用...');
-
-        // 首先加载路径配置
-        console.log('正在加载路径配置...');
-        await pathConfig.load();
+        await pathConfig.load();    //虽然名字还叫路径配置，但实际上只有模式列表。
+                                    //“历史遗留问题”，没改纯粹是懒
 
         // 初始化应用加载器
         const appLoader = new AppLoader();
 
         // 加载应用列表
-        console.log('正在加载应用列表...');
         await appLoader.loadAppList();
 
         // 初始化配置管理器
@@ -27,9 +23,6 @@ async function initApp() {
         const uiManager = new UIManager(configManager, appLoader);
         await uiManager.init();
 
-        console.log('应用初始化完成');
-
-        // 暴露到全局，方便调试
         window.app = {
             pathConfig,
             appLoader,
@@ -38,13 +31,11 @@ async function initApp() {
         };
 
     } catch (error) {
-        console.error('应用初始化失败:', error);
         const rulesList = document.getElementById('rulesList');
         if (rulesList) {
             rulesList.innerHTML = `
             <div class="empty-state" style="color: #e74c3c;">
             初始化失败: ${error.message}<br>
-            请检查浏览器控制台获取详细信息
             </div>
             `;
         }

@@ -10,7 +10,6 @@ export class AppLoader {
     // 从Socket加载应用列表
     async loadAppList() {
         try {
-            console.log('正在通过Socket加载应用列表...');
 
             const appList = await this.socketClient.readAppList();
 
@@ -20,11 +19,9 @@ export class AppLoader {
                 name: app.app_name
             }));
 
-            console.log(`成功加载 ${this.availableApps.length} 个应用`);
             return this.availableApps;
 
         } catch (error) {
-            console.error('从Socket加载应用列表时出错:', error);
             // 回退到内部文件
             return await this.loadInternalAppList();
         }
@@ -45,11 +42,9 @@ export class AppLoader {
                 name: app.app_name
             }));
 
-            console.log(`从内部文件加载 ${this.availableApps.length} 个应用`);
             return this.availableApps;
 
         } catch (error) {
-            console.error('加载内部应用列表时出错:', error);
             // 返回空数组而不是抛出错误，让应用可以继续运行
             this.availableApps = [];
             return [];
