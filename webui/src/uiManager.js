@@ -43,9 +43,7 @@ export class UIManager {
             await this.infoManager.loadConfigFields();
             this.configFields = this.infoManager.getConfigFields();
             this.configCategories = this.groupConfigByCategory();
-            console.log('配置字段加载完成:', this.configFields);
         } catch (error) {
-            console.error('加载配置字段失败:', error);
             this.configFields = [];
             this.configCategories = {};
         }
@@ -57,7 +55,6 @@ export class UIManager {
             await this.infoManager.loadSystemInfo();
             this.renderSystemInfo();
         } catch (error) {
-            console.error('加载系统信息失败:', error);
         }
     }
 
@@ -203,7 +200,6 @@ export class UIManager {
             }, 100);
             
         } catch (error) {
-            console.error('加载日志失败:', error);
             this.showLogsError('加载日志失败: ' + error.message);
         }
     }
@@ -341,7 +337,6 @@ export class UIManager {
             this.showToast(`已删除规则: ${appName}`);
             this.renderRulesList();
         } catch (error) {
-            console.error('删除规则失败:', error);
             this.showToast('删除规则失败: ' + error.message);
         } finally {
             this.pendingDeleteAppPackage = null;
@@ -359,7 +354,6 @@ export class UIManager {
             this.renderPowerData(powerData);
             
         } catch (error) {
-            console.error('加载功耗数据失败:', error);
             this.showPowerError('加载功耗数据失败: ' + error.message);
         }
     }
@@ -551,7 +545,6 @@ export class UIManager {
             }, 2000);
 
         } catch (error) {
-            console.error('刷新应用列表失败:', error);
 
             // 显示错误状态
             this.setRefreshButtonState('error');
@@ -792,7 +785,6 @@ export class UIManager {
             this.renderRulesList();
             this.hideModal();
         } catch (error) {
-            console.error('保存规则失败:', error);
         }
     }
 
@@ -1127,12 +1119,10 @@ export class UIManager {
             if (typeof ksu !== 'undefined') {
                 toast(message);
             } else {
-                console.log('Toast (模拟):', message);
                 // 在网页环境中使用alert作为备用
                 alert(message);
             }
         } catch (error) {
-            console.log('Toast显示失败:', error);
             alert(message); // 最终备用方案
         }
     }

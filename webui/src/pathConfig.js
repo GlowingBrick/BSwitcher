@@ -10,7 +10,6 @@ class PathConfig {
     // 加载路径配置
     async load() {
         try {
-            console.log('正在从后端加载可用模式...');
             
             // 从后端获取可用模式
             const request = {
@@ -24,11 +23,9 @@ class PathConfig {
                 availableModes: availableModes || ['powersave', 'balance', 'performance', 'fast']
             };
             
-            console.log('从后端加载可用模式成功:', this.paths.availableModes);
             return this.paths;
             
         } catch (error) {
-            console.log('从后端加载可用模式失败，使用默认模式:', error);
             
             // 备用方案：使用默认模式
             this.paths = {

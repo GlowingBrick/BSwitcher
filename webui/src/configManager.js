@@ -20,7 +20,6 @@ export class ConfigManager {
     // 加载配置文件 - 使用Socket读取
     async loadConfig() {
         try {
-            console.log('正在通过Socket加载配置...');
 
             const response = await this.socketClient.readScheduler();
 
@@ -30,10 +29,8 @@ export class ConfigManager {
                     rules: response.rules || []
             };
 
-            console.log('配置加载成功:', this.config);
 
         } catch (error) {
-            console.log('配置加载失败，使用默认配置:', error);
             this.config = {
                 defaultMode: pathConfig.getAvailableModes()[0] || '',
                     rules: []
@@ -43,7 +40,6 @@ export class ConfigManager {
             try {
                 await this.saveConfig();
             } catch (saveError) {
-                console.error('保存默认配置失败:', saveError);
             }
         }
     }
@@ -51,7 +47,6 @@ export class ConfigManager {
     // 保存配置 - 使用Socket写入
     async saveConfig() {
         try {
-            console.log('正在通过Socket保存配置...');
 
             // 准备要保存的配置数据（移除id字段）
             const configToSave = {
@@ -64,12 +59,10 @@ export class ConfigManager {
 
             const response = await this.socketClient.writeScheduler(configToSave);
 
-            console.log('配置保存成功');
             this.showToast('配置保存成功');
 
             return this.config;
         } catch (error) {
-            console.error('保存配置时出错:', error);
             this.showToast('配置保存出错: ' + error.message);
             throw error;
         }
@@ -82,10 +75,8 @@ export class ConfigManager {
             if (typeof ksu !== 'undefined') {
                 toast(message);
             } else {
-                console.log('Toast (模拟):', message);
             }
         } catch (error) {
-            console.log('Toast显示失败:', error);
         }
     }
 
@@ -115,7 +106,6 @@ export class ConfigManager {
 
     // 删除规则
     async removeRule(appPackage) {
-        console.log('ConfigManager: 删除规则', appPackage);
         
         // 查找要删除的规则
         const ruleToRemove = this.config.rules.find(rule => rule.appPackage === appPackage);
@@ -125,7 +115,6 @@ export class ConfigManager {
         
         // 过滤掉要删除的规则
         this.config.rules = this.config.rules.filter(rule => rule.appPackage !== appPackage);
-        console.log('删除后剩余规则:', this.config.rules.length);
         
         // 保存配置
         await this.saveConfig();
