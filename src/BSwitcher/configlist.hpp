@@ -55,7 +55,7 @@ const nlohmann::json CONFIG_PCFG = {
     {{"key", "scene_strict"},
      {"type", "checkbox"},
      {"label", "严格Scene模式"},
-     {"description", "严格模仿Scene行为"},
+     {"description", "尽力模仿Scene行为"},
      {"category", "模式设置"},
      {"dependsOn", {{"field", "scene"}, {"condition", true}}},  //条件
      {"affects", {"screen_off"}}},

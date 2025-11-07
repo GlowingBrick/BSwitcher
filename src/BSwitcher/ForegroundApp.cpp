@@ -151,7 +151,7 @@ std::string TopAppDetector::__getForegroundApp_lru() {  //lru兼容更旧的系�
             if (startPos && endPos && endPos > startPos) {
                 bool foundValidTOP = false;
                 for (int i = startPos - 4; i >= 0; --i) {
-                    if (i + 3 < startPos &&
+                    if (i + 3 < static_cast<int>(startPos) &&
                         buffer[i] == 'T' &&
                         buffer[i + 1] == 'O' &&
                         buffer[i + 2] == 'P') {
