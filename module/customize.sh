@@ -11,6 +11,12 @@ migrate_bswitcher_config() {
         ui_print "尝试迁移应用列表"
         cp -f "/data/adb/modules/BSwitcher/scheduler_config.json" "$MODPATH/"
     fi
+
+    # 检查并复制 static_data.json
+    if [ -f "/data/adb/modules/BSwitcher/static_data.jsonn" ]; then
+        ui_print "尝试迁移应用列表"
+        cp -f "/data/adb/modules/BSwitcher/static_data.json" "$MODPATH/"
+    fi
 }
 
 if /system/bin/nc --help 2>&1 | grep -q -e "-U"; then

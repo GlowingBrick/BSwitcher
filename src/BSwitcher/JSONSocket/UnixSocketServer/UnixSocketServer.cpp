@@ -30,7 +30,7 @@ bool UnixSocketServer::start() {
         return false; // 已经在运行
     }
 
-    LOGI("Starting Unix socket server on: %s", socket_path_.c_str());
+    LOGD("Starting Unix socket server on: %s", socket_path_.c_str());
 
     // 创建socket
     server_fd_ = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -80,7 +80,7 @@ bool UnixSocketServer::start() {
 
     server_thread_ = std::thread(&UnixSocketServer::run, this);
 
-    LOGI("Unix socket server started successfully on: %s", socket_path_.c_str());
+    LOGI("Unix socket created: %s", socket_path_.c_str());
     return true;
 }
 
@@ -90,7 +90,7 @@ void UnixSocketServer::stop() {
         return; // 已经停止
     }
 
-    LOGI("Stopping Unix socket server");
+    LOGD("Stopping Unix socket server");
 
     // 通过管道通知监听线程退出
     if (shutdown_pipe_[1] != -1) {
@@ -133,7 +133,7 @@ bool UnixSocketServer::isRunning() const {
 }
 
 void UnixSocketServer::run() {
-    LOGI("Server listening thread started");
+    LOGD("Server listening thread started");
     
     struct pollfd fds[2];
     
@@ -193,7 +193,7 @@ void UnixSocketServer::run() {
         }
     }
     
-    LOGI("Server listening thread stopped");
+    LOGD("Server listening thread stopped");
 }
 
 void UnixSocketServer::handleClient(int client_fd) {

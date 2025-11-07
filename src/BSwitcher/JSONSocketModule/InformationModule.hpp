@@ -3,9 +3,8 @@
 #define INFO_MODULE_HPP
 
 #include "JSONSocket/JSONSocket.hpp"
-#include <string>
 #include <mutex>
-
+#include <string>
 
 // 信息模块
 class InfoConfigTarget : public ConfigTarget {
@@ -16,24 +15,24 @@ public:
         std::string author;
         std::string version;
     } data;
-    
+
     // 互斥锁 - 公开访问
     mutable std::mutex dataMutex;
-    
+
 public:
-    InfoConfigTarget(const std::string& name = "Unknow", 
-                    const std::string& author = "", 
-                    const std::string& version = "") {
+    InfoConfigTarget(const std::string& name = "Unknow",
+                     const std::string& author = "",
+                     const std::string& version = "") {
         std::lock_guard<std::mutex> lock(dataMutex);
         data.name = name;
         data.author = author;
         data.version = version;
     }
-    
+
     std::string getName() const override {
         return "info";
     }
-    
+
     nlohmann::json read() const override {
         std::lock_guard<std::mutex> lock(dataMutex);
         nlohmann::json result;
@@ -42,12 +41,12 @@ public:
         result["version"] = data.version;
         return result;
     }
-    
+
     nlohmann::json write(const nlohmann::json& jsonData) override {
         // info 是只读的，返回错误
         return {{"status", "error"}, {"message", "Info target is read-only"}};
     }
-    
+
     void setData(const std::string& name, const std::string& author, const std::string& version) {
         std::lock_guard<std::mutex> lock(dataMutex);
         data.name = name;
@@ -56,45 +55,30 @@ public:
     }
 };
 
+class SimpleDataTarget : public ConfigTarget {  //简单的信息模块
+private:
+    nlohmann::json _data;
+    std::string _name;
 
-class ConfigListTarget : public ConfigTarget {
 public:
-    nlohmann::json data;
-    ConfigListTarget(const nlohmann::json& list){
-        data=list;
+    SimpleDataTarget(std::string name, const nlohmann::json& data) {
+        _data = data;
+        _name = name;
     }
-    
+
     std::string getName() const override {
-        return "configlist";
+        return _name;
     }
-    
+
     nlohmann::json read() const override {
-        return data;
+        return _data;
     }
-    
+
     nlohmann::json write(const nlohmann::json& jsonData) override {
         // info 是只读的，返回错误
-        return {{"status", "error"}, {"message", "Config list target is read-only"}};
+        return {{"status", "error"}, {"message", _name + "target is read-only"}};
     }
-    
 };
 
-class AvailableModesTarget : public ConfigTarget {
-public:
-    nlohmann::json data;
-    std::string getName() const override {
-        return "availableModes";
-    }
-    
-    nlohmann::json read() const override {
-        return  {"powersave", "balance", "performance", "fast"};
-    }
-    
-    nlohmann::json write(const nlohmann::json& jsonData) override {
-        // 只读，返回错误
-        return {{"status", "error"}, {"message", "Available Modes list target is read-only"}};
-    }
-    
-};
 
 #endif

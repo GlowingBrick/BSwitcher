@@ -1,7 +1,7 @@
 #ifndef JSON_SOCKET_HPP
 #define JSON_SOCKET_HPP
 
-#include <UnixSocketServer.hpp>
+#include <UnixSocketServer/UnixSocketServer.hpp>
 #include <nlohmann/json.hpp>
 #include <Alog.hpp>
 #include <string>

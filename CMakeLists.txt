@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.15)
 project(BSwitcher)
 
-set(CMAKE_CXX_STANDARD 17)  #C++17足够了
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(NOT DEFINED ENV{ANDROID_NDK})
     message(FATAL_ERROR "ANDROID_NDK environment variable is not set")
 endif()
 
-set(ANDROID_NDK $ENV{ANDROID_NDK})  #ndk
+set(ANDROID_NDK $ENV{ANDROID_NDK})
 set(CMAKE_CXX_COMPILER ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android29-clang++)
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -21,44 +21,60 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# ===========================nlohmann/json======================
+# =========================== 公共包含路径 ==========================
+include_directories(src/common)  # 这里有日志定义
+
+# =========================== nlohmann/json ========================
 add_library(nlohmann_json INTERFACE)
 target_include_directories(nlohmann_json INTERFACE
     lib/json/include
 )
 
-# ============================JSONSocket========================= 
+# ============================ JSONSocket ==========================
 add_library(JSONSocket STATIC
-    src/JSONSocket/JSONSocket.cpp
-    src/JSONSocket/UnixSocketServer/UnixSocketServer.cpp
+    src/BSwitcher/JSONSocket/JSONSocket.cpp
+    src/BSwitcher/JSONSocket/UnixSocketServer/UnixSocketServer.cpp
 )
 
 target_include_directories(JSONSocket PUBLIC
-    src/JSONSocket
-    src/JSONSocket/UnixSocketServer
-    src/common
+    src/BSwitcher/JSONSocket
+    src/BSwitcher/JSONSocket/UnixSocketServer
 )
 
-target_link_libraries(JSONSocket PRIVATE nlohmann_json)
-
+target_link_libraries(JSONSocket PUBLIC nlohmann_json)
 target_compile_options(JSONSocket PRIVATE -Wall -Wextra -pedantic)
 
-# ===============================主程序=============================
+# ============================ BSwitcher 核心 ======================
+add_library(BSwitcher_core STATIC
+    src/BSwitcher/BSwitcher.cpp
+    src/BSwitcher/ForegroundApp.cpp
+)
+
+target_include_directories(BSwitcher_core PUBLIC
+    src/BSwitcher
+    src/BSwitcher/JSONSocketModule
+)
+
+target_link_libraries(BSwitcher_core PUBLIC
+    JSONSocket
+    nlohmann_json
+    log
+)
+
+target_compile_options(BSwitcher_core PRIVATE -Wall -Wextra -pedantic)
+
+# ============================ mian ===============================
 add_executable(${PROJECT_NAME}
     src/main.cpp
-    src/ForegroundApp.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    src
-    src/JSONSocketModule
-    src/common
+    src/BSwitcher
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE
-    log
+target_link_libraries(${PROJECT_NAME} PUBLIC
+    BSwitcher_core
     nlohmann_json
-    JSONSocket
     -static-libstdc++
 )
 

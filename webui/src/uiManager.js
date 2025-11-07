@@ -184,14 +184,6 @@ export class UIManager {
             this.saveConfig();
         });
 
-        // 场景模式变化时更新mode_file的可用状态
-        if (this.configModal) {
-            this.configModal.addEventListener('change', (e) => {
-                if (e.target.name === 'scene') {
-                    this.updateModeFileAvailability(e.target.checked);
-                }
-            });
-        }
     }
 
 
@@ -893,7 +885,6 @@ export class UIManager {
                 ).join('');
                 fieldHtml = `
                     <select name="${field.key}" ${isDisabled ? 'disabled' : ''}>
-                        <option value="">请选择</option>
                         ${optionHtml}
                     </select>
                 `;
@@ -963,6 +954,11 @@ export class UIManager {
         if (!field.dependsOn) return false;
         
         const { field: dependentField, condition } = field.dependsOn;
+
+        if (currentConfig[dependentField] === undefined) {  // 忽略不存在的规则
+            return false;
+        }
+
         const dependentValue = currentConfig[dependentField];
         
         // 如果依赖字段的值不等于条件值，则禁用此字段
@@ -1080,8 +1076,7 @@ export class UIManager {
 
     // 执行按钮动作
     async executeButtonAction(key, button) {
-        // 先取消确认状态（如果存在）
-        this.cancelConfirmation(button);
+        this.cancelConfirmation(button);    //恢复状态
         
         try {
             const request = {
@@ -1091,11 +1086,11 @@ export class UIManager {
             };
             
             const result = await this.socketClient.communicate(request);
-            if (result?.message) {
+            if (result?.message && result.message.trim() !== '') {
                 this.showToast(result.message);
             }
         } catch (error) {
-            this.showToast('执行操作失败: ' + error.message);
+            this.showToast('Unknown error: ' + error.message);
         }
     }
 
@@ -1124,21 +1119,6 @@ export class UIManager {
         return this.getCurrentConfigFormData();
     }
 
-    // 更新mode_file字段的可用状态
-    updateModeFileAvailability(sceneEnabled) {
-        const modeFileItem = document.querySelector('.config-item input[name="mode_file"]');
-        const modeFileContainer = document.querySelector('.config-item input[name="mode_file"]')?.closest('.config-item');
-        
-        if (modeFileItem && modeFileContainer) {
-            if (sceneEnabled) {
-                modeFileItem.disabled = true;
-                modeFileContainer.classList.add('disabled');
-            } else {
-                modeFileItem.disabled = false;
-                modeFileContainer.classList.remove('disabled');
-            }
-        }
-    }
 
     // 显示Toast提示
     async showToast(message) {

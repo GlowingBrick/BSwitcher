@@ -22,14 +22,13 @@ bool JSONSocket::initialize() {
         LOGW("JSONSocket already initialized");
         return true;
     }
-    LOGI("JSONSocket initializing...");
+    LOGD("JSONSocket initializing...");
 
     // 启动服务器
     if (server->start()) {
         initialized = true;
-        LOGI("JSONSocket initialized successfully");
-        LOGI("Socket path: %s", socketPath.c_str());
-        LOGI("Registered config targets: %zu", configTargets.size());
+        LOGD("JSONSocket initialized successfully");
+        LOGD("Registered config targets: %zu", configTargets.size());
         return true;
     } else {
         LOGE("Failed to start UnixSocketServer");
@@ -45,7 +44,7 @@ void JSONSocket::stop() {
     }
     initialized = false;
     configTargets.clear();
-    LOGI("JSONSocket stopped");
+    LOGD("JSONSocket stopped");
 }
 
 bool JSONSocket::isRunning() const {
@@ -64,7 +63,7 @@ bool JSONSocket::registerConfigTarget(const ConfigTargetPtr& target) {
     }
     
     configTargets[name] = target;
-    LOGI("Registered config target: %s", name.c_str());
+    LOGD("Registered config target: %s", name.c_str());
     return true;
 }
 
@@ -72,7 +71,7 @@ bool JSONSocket::unregisterConfigTarget(const std::string& name) {
     auto it = configTargets.find(name);
     if (it != configTargets.end()) {
         configTargets.erase(it);
-        LOGI("Unregistered config target: %s", name.c_str());
+        LOGD("Unregistered config target: %s", name.c_str());
         return true;
     }
     LOGW("Config target %s not found for unregister", name.c_str());
