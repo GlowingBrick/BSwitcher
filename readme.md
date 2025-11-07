@@ -5,7 +5,7 @@
 
 ## **编译**：
 ```bash
-git clone https://github.com/GlowingBrick/BSwitcher.git
+git clone --recurse-submodules https://github.com/GlowingBrick/BSwitcher.git
 cd BSwitcher
 mkdir build
 cd build
