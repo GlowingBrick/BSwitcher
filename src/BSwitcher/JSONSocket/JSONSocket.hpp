@@ -18,7 +18,7 @@ public:
     virtual std::string getName() const = 0;
     
     // 读取配置
-    virtual nlohmann::json read() const = 0;
+    virtual nlohmann::json read() = 0;
     
     // 写入配置
     virtual nlohmann::json write(const nlohmann::json& data) = 0;

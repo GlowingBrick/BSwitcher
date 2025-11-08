@@ -31,7 +31,7 @@ public:
         }
     }
 
-    nlohmann::json read() const override {
+    nlohmann::json read() override {
         try {
             std::ifstream file(filename);
             if (!file.is_open()) {
@@ -61,6 +61,7 @@ public:
         bool scene_strict;
         bool power_monitoring;
         bool using_inotify;
+        bool dual_battery;
     } config;
 
     // 互斥锁 - 公开访问
@@ -76,7 +77,8 @@ private:
         {"mode_file", ""},
         {"screen_off", "powersave"},
         {"power_monitoring", true},
-        {"using_inotify", true}};
+        {"using_inotify", true},
+        {"dual_battery",false}};
 
     void loadFromFile() {
         auto fileData = FileConfigTarget::read();
@@ -100,6 +102,7 @@ private:
                 config.screen_off = fileData.value("screen_off", DEFAULT_CONFIG["screen_off"]);
                 config.power_monitoring = fileData.value("power_monitoring", DEFAULT_CONFIG["power_monitoring"]);
                 config.using_inotify = fileData.value("using_inotify", DEFAULT_CONFIG["using_inotify"]);
+                config.dual_battery = fileData.value("dual_battery", DEFAULT_CONFIG["dual_battery"]);
             } else {
                 // 文件不存在或无效，使用默认值
                 config.poll_interval = DEFAULT_CONFIG["poll_interval"];
@@ -109,7 +112,8 @@ private:
                 config.mode_file = DEFAULT_CONFIG["mode_file"];
                 config.screen_off = DEFAULT_CONFIG["screen_off"];
                 config.power_monitoring = DEFAULT_CONFIG["power_monitoring"];
-                config.using_inotify = DEFAULT_CONFIG["config.using_inotify ="];
+                config.using_inotify = DEFAULT_CONFIG["using_inotify"];
+                config.dual_battery = DEFAULT_CONFIG["dual_battery"];
             }
             modify = true;
         }
@@ -132,6 +136,7 @@ private:
             fileData["screen_off"] = config.screen_off;
             fileData["power_monitoring"] = config.power_monitoring;
             fileData["using_inotify"] = config.using_inotify;
+            fileData["dual_battery"] = config.dual_battery;
         }
         return FileConfigTarget::write(fileData);
     }
@@ -145,7 +150,7 @@ public:
         return "config";
     }
 
-    nlohmann::json read() const override {
+    nlohmann::json read() override {
         std::lock_guard<std::mutex> lock(configMutex);
         nlohmann::json result;
         result["poll_interval"] = config.poll_interval;
@@ -156,6 +161,7 @@ public:
         result["screen_off"] = config.screen_off;
         result["power_monitoring"] = config.power_monitoring;
         result["using_inotify"] = config.using_inotify;
+        result["dual_battery"] = config.dual_battery;
         return result;
     }
 
@@ -185,6 +191,9 @@ public:
             }
             if (data.contains("using_inotify")) {
                 config.using_inotify = data.value("using_inotify", config.using_inotify);
+            }
+            if (data.contains("dual_battery")) {
+                config.dual_battery = data.value("dual_battery", config.dual_battery);
             }
         }
         modify = true;
@@ -283,7 +292,7 @@ public:
         return "scheduler";
     }
 
-    nlohmann::json read() const override {
+    nlohmann::json read() override {
         std::lock_guard<std::mutex> lock(configMutex);
         nlohmann::json result;
         result["defaultMode"] = config.defaultMode;
@@ -340,7 +349,7 @@ public:
         return "command";
     }
 
-    nlohmann::json read() const override {
+    nlohmann::json read() override {
         return {{"status", "error"}, {"message", "command is write-only, no data to read."}};
     }
 

@@ -33,7 +33,7 @@ public:
         return "info";
     }
 
-    nlohmann::json read() const override {
+    nlohmann::json read() override {
         std::lock_guard<std::mutex> lock(dataMutex);
         nlohmann::json result;
         result["name"] = data.name;
@@ -70,7 +70,7 @@ public:
         return _name;
     }
 
-    nlohmann::json read() const override {
+    nlohmann::json read() override {
         return _data;
     }
 

@@ -33,6 +33,9 @@ private:
     int voltage_fd_ = -1;
     int status_fd_ = -1;
 
+    bool* dualBatteryPtr_;
+    std::atomic<int> unit_{12};
+
     // 线程控制
     std::atomic<bool> running_{false};
     std::atomic<bool> stop_{false};
@@ -40,7 +43,7 @@ private:
     std::mutex control_mutex_;
     std::condition_variable cv_;
 
-    std::string* current_app_ptr_;
+    const std::string* current_app_ptr_;
 
     std::atomic<bool> screen_status{true};
 
@@ -49,7 +52,7 @@ private:
         current_fd_ = open("/sys/class/power_supply/battery/current_now", O_RDONLY | O_CLOEXEC);
         voltage_fd_ = open("/sys/class/power_supply/battery/voltage_now", O_RDONLY | O_CLOEXEC);
         status_fd_ = open("/sys/class/power_supply/battery/status", O_RDONLY | O_CLOEXEC);
-        return (current_fd_ >= 0) && (voltage_fd_ >= 0);  //status不是必须的
+        return (current_fd_ >= 0) && (voltage_fd_ >= 0);  //status一般不是必须的
     }
 
     // 读取当前功率（瓦特）
@@ -67,7 +70,10 @@ private:
         long voltage_uv = atol(buf);
 
         // P = (I * V) / 1e12
-        return static_cast<float>(static_cast<double>(current_ua) * static_cast<double>(voltage_uv) * static_cast<double>(1e-12f));
+        return static_cast<float>(static_cast<double>(current_ua) *
+                                  static_cast<double>(voltage_uv) *
+                                  std::pow(10.0, -unit_.load(std::memory_order_relaxed))) *  //转换到W
+               ((*dualBatteryPtr_) ? 2.0 : 1.0);                                             //双电芯
     }
 
     // 工作线程
@@ -142,7 +148,9 @@ private:
             }
 
             power_w = read_current_power_w();
-            if (power_w <= 0.0f) {
+
+            if (power_w <= -1e-9f) {
+                LOGD("Anomalous value detected, skipping.");
                 clock_gettime(CLOCK_MONOTONIC, &last_time);
                 continue;
             }
@@ -157,7 +165,6 @@ private:
                 AppPower& stats = app_power_map_[app_name];
                 stats.time_sec += delta_t;
                 stats.power_joules += (power_w * delta_t);
-                trim_and_merge_app_power();
             }
         }
 
@@ -172,6 +179,61 @@ private:
         if (status_fd_ >= 0) {
             close(status_fd_);
             status_fd_ = -1;
+        }
+    }
+
+    void data_correction(int cycles = 0) {  //数据矫正，为解决不同设备单位问题
+        if (cycles >= 5) {
+            LOGE("PowerMonitor: We cannot calibrate this data. Manual calibration is required.");
+            return;
+        }
+        if (app_power_map_.size() <= 1) {  //只有1条时暂时忽略
+            return;
+        }
+
+        int tooLarge = 0;    //过大的数据量
+        int tooSmall = 0;    //过小的数据量
+        int normalData = 0;  //正常数据
+        for (const auto& [name, stats] : app_power_map_) {
+            if (stats.time_sec < 0.01f) {
+                continue;
+            }
+            float watt = stats.power_joules / stats.time_sec;
+            if (watt > 40.0) {  //数据过大，绝不应超过40
+                ++tooLarge;
+            } else if (watt < 0.041) {  //数据过小，不应低于0.04
+                ++tooSmall;
+            } else {
+                ++normalData;
+            }
+        }
+
+        if (normalData > (tooSmall + tooLarge)) {  //正常占多数
+            return;
+        } else {
+            if (tooSmall > tooLarge) {
+                for (auto& [name, stats] : app_power_map_) {  //纠正所有数据
+                    stats.power_joules *= 1000.0;
+                }
+                int untmp = unit_.load(std::memory_order_relaxed);
+                unit_.store(untmp - 3, std::memory_order_relaxed);  //数量级扩大三倍
+                LOGD("PowerMonitor: Data values too small, amplifying data.");
+                data_correction(cycles + 1);                        //递归继续检查
+
+            } else if (tooSmall < tooLarge) {
+                for (auto& [name, stats] : app_power_map_) {  //纠正所有数据
+                    stats.power_joules /= 1000.0;
+                }
+                int untmp = unit_.load(std::memory_order_relaxed);
+                unit_.store(untmp + 3, std::memory_order_relaxed);  //数量级缩小三倍
+                LOGD("PowerMonitor: Data values too large, reducing data.");
+                data_correction(cycles + 1);                        //递归继续检查
+
+            } else {
+                //很难想象什么设备能同时出现大量的40w以上和0.4瓦以下
+                LOGE("PowerMonitor: We cannot calibrate this data. Manual calibration is required.");
+                return;
+            }
         }
     }
 
@@ -217,9 +279,8 @@ private:
     }
 
 public:
-    PowerMonitorTarget(std::string* current_app_ptr) {
-        current_app_ptr_ = current_app_ptr;  //放弃线程安全，反正不会有致命错误
-    }
+    PowerMonitorTarget(std::string* current_app_ptr, bool* dualBatteryRef)
+        : dualBatteryPtr_(dualBatteryRef), current_app_ptr_(current_app_ptr) {}
 
     ~PowerMonitorTarget() {
         stop();
@@ -241,8 +302,11 @@ public:
         return "powerdata";
     }
 
-    nlohmann::json read() const override {
+    nlohmann::json read() override {
         std::lock_guard<std::mutex> lock(data_mutex_);
+
+        trim_and_merge_app_power();  //发送前修复数据
+        data_correction();
 
         nlohmann::json result = nlohmann::json::array();
 

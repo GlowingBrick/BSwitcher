@@ -27,7 +27,15 @@ const nlohmann::json CONFIG_SCHEMA = {                             //定义前�
      {"type", "checkbox"},
      {"label", "能耗监控"},
      {"description", "记录能耗信息"},
-     {"category", "电源管理"}},
+     {"category", "电源管理"},
+     {"affects", {"dual_battery"}}},
+
+    {{"key", "dual_battery"},
+     {"type", "checkbox"},
+     {"label", "双电芯"},
+     {"description", "双电芯设备"},
+     {"category", "电源管理"},
+     {"dependsOn", {{"field", "power_monitoring"}, {"condition", true}}}},
 
     {{"key", "clear_monitoring"},
      {"type", "button"},

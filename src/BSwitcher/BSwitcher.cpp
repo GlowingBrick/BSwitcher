@@ -16,7 +16,7 @@ int BSwitcher::init_service() {
     schedulerConfigTarget = std::make_shared<SchedulerConfigTarget>();
     appListTarget = std::make_shared<ApplistConfigTarget>();
     availableModesTarget = std::make_shared<SimpleDataTarget>("availableModes", nlohmann::json::array({"powersave", "balance", "performance", "fast"}));
-    powerMonitorTarget = std::make_shared<PowerMonitorTarget>(&currentApp);
+    powerMonitorTarget = std::make_shared<PowerMonitorTarget>(&currentApp,&mainConfigTarget->config.dual_battery);
     configButtonTarget = std::make_shared<ConfigButtonTarget>(
         [this](const std::string& key) {
             return command_callback(key);

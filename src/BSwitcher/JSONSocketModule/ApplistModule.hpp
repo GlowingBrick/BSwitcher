@@ -26,7 +26,7 @@ public:
         return "applist";
     }
     
-    nlohmann::json read() const override {
+    nlohmann::json read() override {
         return getCachedAppList();
     }
     

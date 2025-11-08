@@ -13,7 +13,7 @@ migrate_bswitcher_config() {
     fi
 
     # 检查并复制 static_data.json
-    if [ -f "/data/adb/modules/BSwitcher/static_data.jsonn" ]; then
+    if [ -f "/data/adb/modules/BSwitcher/static_data.json" ]; then
         ui_print "尝试迁移静态数据"
         cp -f "/data/adb/modules/BSwitcher/static_data.json" "$MODPATH/"
     fi
