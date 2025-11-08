@@ -149,7 +149,7 @@ private:
 
             power_w = read_current_power_w();
 
-            if (power_w <= -1e-9f) {
+            if (power_w <= 1e-12f) {
                 LOGD("Anomalous value detected, skipping.");
                 clock_gettime(CLOCK_MONOTONIC, &last_time);
                 continue;
@@ -216,6 +216,10 @@ private:
                     stats.power_joules *= 1000.0;
                 }
                 int untmp = unit_.load(std::memory_order_relaxed);
+                if(untmp-3<0){
+                    return;
+                    LOGE("PowerMonitor: We cannot calibrate this data. Manual calibration is required.");
+                }
                 unit_.store(untmp - 3, std::memory_order_relaxed);  //数量级扩大三倍
                 LOGD("PowerMonitor: Data values too small, amplifying data.");
                 data_correction(cycles + 1);                        //递归继续检查
