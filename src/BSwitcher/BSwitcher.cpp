@@ -107,6 +107,12 @@ int BSwitcher::load_config() {                                         //在此�
         fileWatcher->cleanup();
     }
 
+    if(!mainConfigTarget->config.custom_mode.empty()){
+        availableModesTarget->reLoad(nlohmann::json::array({"powersave", "balance", "performance", "fast", mainConfigTarget->config.custom_mode}));
+    }else{
+        availableModesTarget->reLoad(nlohmann::json::array({"powersave", "balance", "performance", "fast"}));
+    }
+
     if (!staticMode) {                                                                      //非静态模式下
         write_mode = std::bind(&BSwitcher::dummy_write_mode, this, std::placeholders::_1);  // 防段错误
         static bool lastscene = false;                                                      //记录scenemode是否改变

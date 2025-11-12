@@ -8,6 +8,20 @@
 #include <string>
 #include <vector>
 
+//这是真正配置文件里面有的
+#define CONFIG_ITEMS                                  \ 
+    CONFIG_ITEM(int, poll_interval, 2)                \
+    CONFIG_ITEM(int, low_battery_threshold, 15)       \
+    CONFIG_ITEM(bool, scene, true)                    \
+    CONFIG_ITEM(std::string, mode_file, "")           \
+    CONFIG_ITEM(std::string, screen_off, "powersave") \
+    CONFIG_ITEM(bool, scene_strict, false)            \
+    CONFIG_ITEM(bool, power_monitoring, true)         \
+    CONFIG_ITEM(bool, using_inotify, true)            \
+    CONFIG_ITEM(bool, dual_battery, false)            \
+    CONFIG_ITEM(std::string, custom_mode, "")
+
+
 // 文件配置目标基类
 class FileConfigTarget : public ConfigTarget {
 protected:
@@ -53,15 +67,9 @@ class MainConfigTarget : public FileConfigTarget {
 public:
     // 内存结构体 - 公开访问
     struct MainConfig {
-        int poll_interval;
-        int low_battery_threshold;
-        bool scene;
-        std::string mode_file;
-        std::string screen_off;
-        bool scene_strict;
-        bool power_monitoring;
-        bool using_inotify;
-        bool dual_battery;
+        #define CONFIG_ITEM(type, name, default_val) type name;
+                CONFIG_ITEMS
+        #undef CONFIG_ITEM
     } config;
 
     // 互斥锁 - 公开访问
@@ -70,15 +78,10 @@ public:
 private:
     // 默认配置
     const nlohmann::json DEFAULT_CONFIG = {
-        {"poll_interval", 2},
-        {"low_battery_threshold", 15},
-        {"scene", true},
-        {"scene_strict", false},
-        {"mode_file", ""},
-        {"screen_off", "powersave"},
-        {"power_monitoring", true},
-        {"using_inotify", true},
-        {"dual_battery",false}};
+        #define CONFIG_ITEM(type, name, default_val) {#name, default_val},
+                CONFIG_ITEMS
+        #undef CONFIG_ITEM
+    };
 
     void loadFromFile() {
         auto fileData = FileConfigTarget::read();
@@ -92,29 +95,20 @@ private:
         {
             std::lock_guard<std::mutex> lock(configMutex);
 
-            if (hasValidData) {
-                // 逐项加载，缺失的项使用默认值
-                config.poll_interval = fileData.value("poll_interval", DEFAULT_CONFIG["poll_interval"]);
-                config.low_battery_threshold = fileData.value("low_battery_threshold", DEFAULT_CONFIG["low_battery_threshold"]);
-                config.scene = fileData.value("scene", DEFAULT_CONFIG["scene"]);
-                config.scene_strict = fileData.value("scene_strict", DEFAULT_CONFIG["scene_strict"]);
-                config.mode_file = fileData.value("mode_file", DEFAULT_CONFIG["mode_file"]);
-                config.screen_off = fileData.value("screen_off", DEFAULT_CONFIG["screen_off"]);
-                config.power_monitoring = fileData.value("power_monitoring", DEFAULT_CONFIG["power_monitoring"]);
-                config.using_inotify = fileData.value("using_inotify", DEFAULT_CONFIG["using_inotify"]);
-                config.dual_battery = fileData.value("dual_battery", DEFAULT_CONFIG["dual_battery"]);
-            } else {
-                // 文件不存在或无效，使用默认值
-                config.poll_interval = DEFAULT_CONFIG["poll_interval"];
-                config.low_battery_threshold = DEFAULT_CONFIG["low_battery_threshold"];
-                config.scene = DEFAULT_CONFIG["scene"];
-                config.scene_strict = DEFAULT_CONFIG["scene_strict"];
-                config.mode_file = DEFAULT_CONFIG["mode_file"];
-                config.screen_off = DEFAULT_CONFIG["screen_off"];
-                config.power_monitoring = DEFAULT_CONFIG["power_monitoring"];
-                config.using_inotify = DEFAULT_CONFIG["using_inotify"];
-                config.dual_battery = DEFAULT_CONFIG["dual_battery"];
-            }
+        if (hasValidData) {
+            
+            #define CONFIG_ITEM(type, name, default_val) \
+                    config.name = fileData.value(#name, DEFAULT_CONFIG[#name]);
+                    CONFIG_ITEMS
+            #undef CONFIG_ITEM
+
+        } else {
+
+            #define CONFIG_ITEM(type, name, default_val) \
+                    config.name = DEFAULT_CONFIG[#name];
+                    CONFIG_ITEMS
+            #undef CONFIG_ITEM
+        }
             modify = true;
         }
 
@@ -128,15 +122,10 @@ private:
         nlohmann::json fileData;
         {
             std::lock_guard<std::mutex> lock(configMutex);
-            fileData["poll_interval"] = config.poll_interval;
-            fileData["low_battery_threshold"] = config.low_battery_threshold;
-            fileData["scene"] = config.scene;
-            fileData["scene_strict"] = config.scene_strict;
-            fileData["mode_file"] = config.mode_file;
-            fileData["screen_off"] = config.screen_off;
-            fileData["power_monitoring"] = config.power_monitoring;
-            fileData["using_inotify"] = config.using_inotify;
-            fileData["dual_battery"] = config.dual_battery;
+            #define CONFIG_ITEM(type, name, default_val) \
+                fileData[#name] = config.name;
+                CONFIG_ITEMS
+            #undef CONFIG_ITEM
         }
         return FileConfigTarget::write(fileData);
     }
@@ -153,48 +142,25 @@ public:
     nlohmann::json read() override {
         std::lock_guard<std::mutex> lock(configMutex);
         nlohmann::json result;
-        result["poll_interval"] = config.poll_interval;
-        result["low_battery_threshold"] = config.low_battery_threshold;
-        result["scene"] = config.scene;
-        result["scene_strict"] = config.scene_strict;
-        result["mode_file"] = config.mode_file;
-        result["screen_off"] = config.screen_off;
-        result["power_monitoring"] = config.power_monitoring;
-        result["using_inotify"] = config.using_inotify;
-        result["dual_battery"] = config.dual_battery;
+
+        #define CONFIG_ITEM(type, name, default_val) result[#name] = config.name;
+        CONFIG_ITEMS
+        #undef CONFIG_ITEM
+
         return result;
     }
 
     nlohmann::json write(const nlohmann::json& data) override {
         {
             std::lock_guard<std::mutex> lock(configMutex);
-            if (data.contains("poll_interval")) {
-                config.poll_interval = data.value("poll_interval", config.poll_interval);
-            }
-            if (data.contains("low_battery_threshold")) {
-                config.low_battery_threshold = data.value("low_battery_threshold", config.low_battery_threshold);
-            }
-            if (data.contains("scene")) {
-                config.scene = data.value("scene", config.scene);
-            }
-            if (data.contains("scene_strict")) {
-                config.scene_strict = data.value("scene_strict", config.scene_strict);
-            }
-            if (data.contains("mode_file")) {
-                config.mode_file = data.value("mode_file", config.mode_file);
-            }
-            if (data.contains("screen_off")) {
-                config.screen_off = data.value("screen_off", config.screen_off);
-            }
-            if (data.contains("power_monitoring")) {
-                config.power_monitoring = data.value("power_monitoring", config.power_monitoring);
-            }
-            if (data.contains("using_inotify")) {
-                config.using_inotify = data.value("using_inotify", config.using_inotify);
-            }
-            if (data.contains("dual_battery")) {
-                config.dual_battery = data.value("dual_battery", config.dual_battery);
-            }
+
+            #define CONFIG_ITEM(type, name, default_val) \
+                if (data.contains(#name)) { \
+                    config.name = data.value(#name, config.name); \
+                }
+                CONFIG_ITEMS
+            #undef CONFIG_ITEM
+
         }
         modify = true;
 
@@ -222,7 +188,7 @@ public:
 private:
     // 默认配置
     const nlohmann::json DEFAULT_CONFIG = {
-        {"defaultMode", "performance"},
+        {"defaultMode", "balance"},
         {"rules", nlohmann::json::array()}};
 
     void loadFromFile() {
@@ -354,7 +320,7 @@ public:
     }
 
     nlohmann::json write(const nlohmann::json& jsonData) override {
-        if (!jsonData.is_array()) { //检查数据
+        if (!jsonData.is_array()) {  //检查数据
             return {{"status", "error"}, {"message", "Unparseable Command."}};
         }
 

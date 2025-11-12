@@ -50,7 +50,13 @@ const nlohmann::json CONFIG_SCHEMA = {                             //定义前�
      {"description", "屏幕关闭时自动切换到的模式"},
      {"category", "模式设置"},
      {"options", "availableModes"},
-     {"dependsOn", {{"field", "scene_strict"}, {"condition", false}}}}};
+     {"dependsOn", {{"field", "scene_strict"}, {"condition", false}}}},
+    
+    {{"key", "custom_mode"},
+     {"type", "text"},
+     {"label", "自定义模式"},
+     {"description", "在模式列表添加一个可选的自定义模式(需调度器支持)"},
+     {"category", "模式设置"}}};
 
 const nlohmann::json CONFIG_PCFG = {
     {{"key", "scene"},

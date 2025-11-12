@@ -66,6 +66,10 @@ public:
         _name = name;
     }
 
+    void reLoad(const nlohmann::json& data){
+        _data = data;
+    }
+
     std::string getName() const override {
         return _name;
     }

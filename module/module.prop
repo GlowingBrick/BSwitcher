@@ -1,7 +1,7 @@
 id=BSwitcher
 name=BSwitcher
-version=0.00dev
-versionCode=00
+version=0.01
+versionCode=01
 author=BCK
 description=轻量化的调度管理器
 updateJson=

@@ -216,13 +216,13 @@ private:
                     stats.power_joules *= 1000.0;
                 }
                 int untmp = unit_.load(std::memory_order_relaxed);
-                if(untmp-3<0){
+                if (untmp - 3 < 0) {
                     return;
                     LOGE("PowerMonitor: We cannot calibrate this data. Manual calibration is required.");
                 }
                 unit_.store(untmp - 3, std::memory_order_relaxed);  //数量级扩大三倍
                 LOGD("PowerMonitor: Data values too small, amplifying data.");
-                data_correction(cycles + 1);                        //递归继续检查
+                data_correction(cycles + 1);  //递归继续检查
 
             } else if (tooSmall < tooLarge) {
                 for (auto& [name, stats] : app_power_map_) {  //纠正所有数据
@@ -231,7 +231,7 @@ private:
                 int untmp = unit_.load(std::memory_order_relaxed);
                 unit_.store(untmp + 3, std::memory_order_relaxed);  //数量级缩小三倍
                 LOGD("PowerMonitor: Data values too large, reducing data.");
-                data_correction(cycles + 1);                        //递归继续检查
+                data_correction(cycles + 1);  //递归继续检查
 
             } else {
                 //很难想象什么设备能同时出现大量的40w以上和0.4瓦以下
