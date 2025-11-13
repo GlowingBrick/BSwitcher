@@ -130,10 +130,10 @@ std::string TopAppDetector::__getForegroundApp_lru() {  //lru兼容更旧的系�
 
     char buffer[256];
     int lineCount = 0;
-    std::string result;
+    std::string result="";
 
     while (fgets(buffer, sizeof(buffer), pipe)) {
-        if (++lineCount == 3) {
+        if (result.empty()) {
             size_t len = strlen(buffer);
             size_t startPos = 0;
             size_t endPos = 0;
@@ -164,10 +164,9 @@ std::string TopAppDetector::__getForegroundApp_lru() {  //lru兼容更旧的系�
 
                 if (foundValidTOP) {
                     result.assign(buffer + startPos, endPos - startPos);
+                    break;
                 }
             }
-
-            break;
         }
     }
     pclose(pipe);
