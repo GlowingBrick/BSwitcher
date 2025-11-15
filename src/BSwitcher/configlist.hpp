@@ -56,7 +56,51 @@ const nlohmann::json CONFIG_SCHEMA = {                             //定义前�
      {"type", "text"},
      {"label", "自定义模式"},
      {"description", "在模式列表添加一个可选的自定义模式(需调度器支持)"},
-     {"category", "模式设置"}}};
+     {"category", "模式设置"}},
+    
+    {{"key", "dynamic_fps"},
+     {"type", "checkbox"},
+     {"label", "动态刷新率"},
+     {"description", "启用动态刷新率"},
+     {"category", "动态刷新率"},
+     {"affects", {"up_fps"}}},
+
+    {{"key", "up_fps"},
+     {"type", "select"},
+     {"label", "触摸刷新率"},
+     {"description", "触摸时切换的默认刷新率"},
+     {"category", "动态刷新率"},
+     {"options", "availableFps"},
+     {"dependsOn", {{"field", "dynamic_fps"}, {"condition", true}}}},
+
+    {{"key", "down_fps"},
+     {"type", "select"},
+     {"label", "空闲刷新率"},
+     {"description", "空闲时切换的默认刷新率"},
+     {"category", "动态刷新率"},
+     {"options", "availableFps"},
+     {"dependsOn", {{"field", "dynamic_fps"}, {"condition", true}}}},
+
+    {{"key", "fps_idle_time"},
+     {"type", "number"},
+     {"label", "空闲等待时间"},
+     {"description", "进入空闲状态的时间(毫秒)"},
+     {"category", "动态刷新率"},
+    {"dependsOn", {{"field", "dynamic_fps"}, {"condition", true}}}},
+
+    {{"key", "fps_backdoor"},
+     {"type", "checkbox"},
+     {"label", "使用Backdoor"},
+     {"description", "据说兼容更好, 那么代价呢？"},
+     {"category", "动态刷新率"},
+    {"dependsOn", {{"field", "dynamic_fps"}, {"condition", true}}}},
+
+    {{"key", "fps_backdoor_id"},
+     {"type", "number"},
+     {"label", "SERVICE CODE"},
+     {"description", "Backdoor使用.一般1035,据说个别设备是1036"},
+     {"category", "动态刷新率"},
+    {"dependsOn", {{"field", "dynamic_fps"}, {"condition", true}}}}};
 
 const nlohmann::json CONFIG_PCFG = {
     {{"key", "scene"},

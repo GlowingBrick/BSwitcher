@@ -9,7 +9,7 @@
 #include <vector>
 
 //这是真正配置文件里面有的
-#define CONFIG_ITEMS                                  \ 
+#define CONFIG_ITEMS                                  \
     CONFIG_ITEM(int, poll_interval, 2)                \
     CONFIG_ITEM(int, low_battery_threshold, 15)       \
     CONFIG_ITEM(bool, scene, true)                    \
@@ -19,7 +19,13 @@
     CONFIG_ITEM(bool, power_monitoring, true)         \
     CONFIG_ITEM(bool, using_inotify, true)            \
     CONFIG_ITEM(bool, dual_battery, false)            \
-    CONFIG_ITEM(std::string, custom_mode, "")
+    CONFIG_ITEM(std::string, custom_mode, "")         \
+    CONFIG_ITEM(bool, dynamic_fps, false)             \
+    CONFIG_ITEM(int, fps_idle_time, 2500)             \
+    CONFIG_ITEM(int, down_fps, 60)                    \
+    CONFIG_ITEM(int, up_fps, 120)                     \
+    CONFIG_ITEM(bool, fps_backdoor, false)            \
+    CONFIG_ITEM(int, fps_backdoor_id, 1035)
 
 
 // 文件配置目标基类
@@ -67,9 +73,9 @@ class MainConfigTarget : public FileConfigTarget {
 public:
     // 内存结构体 - 公开访问
     struct MainConfig {
-        #define CONFIG_ITEM(type, name, default_val) type name;
-                CONFIG_ITEMS
-        #undef CONFIG_ITEM
+#define CONFIG_ITEM(type, name, default_val) type name;
+        CONFIG_ITEMS
+#undef CONFIG_ITEM
     } config;
 
     // 互斥锁 - 公开访问
@@ -78,9 +84,9 @@ public:
 private:
     // 默认配置
     const nlohmann::json DEFAULT_CONFIG = {
-        #define CONFIG_ITEM(type, name, default_val) {#name, default_val},
-                CONFIG_ITEMS
-        #undef CONFIG_ITEM
+#define CONFIG_ITEM(type, name, default_val) {#name, default_val},
+        CONFIG_ITEMS
+#undef CONFIG_ITEM
     };
 
     void loadFromFile() {
@@ -95,20 +101,20 @@ private:
         {
             std::lock_guard<std::mutex> lock(configMutex);
 
-        if (hasValidData) {
-            
-            #define CONFIG_ITEM(type, name, default_val) \
-                    config.name = fileData.value(#name, DEFAULT_CONFIG[#name]);
-                    CONFIG_ITEMS
-            #undef CONFIG_ITEM
+            if (hasValidData) {
 
-        } else {
+#define CONFIG_ITEM(type, name, default_val) \
+    config.name = fileData.value(#name, DEFAULT_CONFIG[#name]);
+                CONFIG_ITEMS
+#undef CONFIG_ITEM
 
-            #define CONFIG_ITEM(type, name, default_val) \
-                    config.name = DEFAULT_CONFIG[#name];
-                    CONFIG_ITEMS
-            #undef CONFIG_ITEM
-        }
+            } else {
+
+#define CONFIG_ITEM(type, name, default_val) \
+    config.name = DEFAULT_CONFIG[#name];
+                CONFIG_ITEMS
+#undef CONFIG_ITEM
+            }
             modify = true;
         }
 
@@ -122,12 +128,44 @@ private:
         nlohmann::json fileData;
         {
             std::lock_guard<std::mutex> lock(configMutex);
-            #define CONFIG_ITEM(type, name, default_val) \
-                fileData[#name] = config.name;
-                CONFIG_ITEMS
-            #undef CONFIG_ITEM
+#define CONFIG_ITEM(type, name, default_val) \
+    fileData[#name] = config.name;
+            CONFIG_ITEMS
+#undef CONFIG_ITEM
         }
         return FileConfigTarget::write(fileData);
+    }
+
+    template <typename T>
+    T safe_json_get(const nlohmann::json& data, const std::string& key, const T& default_val) {  //为了解决前端有时候用字符表示数字的情况
+        if (!data.contains(key)) {
+            return default_val;
+        }
+
+        try {
+            if (data[key].type() == nlohmann::json::value_t::number_integer &&
+                std::is_integral_v<T>) {
+                return data[key].get<T>();
+            } else if (data[key].type() == nlohmann::json::value_t::number_float &&
+                       std::is_floating_point_v<T>) {
+                return data[key].get<T>();
+            } else if (data[key].type() == nlohmann::json::value_t::string) {  //字符转数字
+                if constexpr (std::is_integral_v<T>) {
+                    if constexpr (std::is_same_v<T, bool>) {
+                        std::string str = data[key].get<std::string>();
+                        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+                        return (str == "true" || str == "1" || str == "yes");
+                    } else {
+                        return static_cast<T>(std::stoll(data[key].get<std::string>()));
+                    }
+                } else if constexpr (std::is_floating_point_v<T>) {
+                    return static_cast<T>(std::stod(data[key].get<std::string>()));
+                }
+            }
+            return data[key].get<T>();
+        } catch (...) {
+            return default_val;
+        }
     }
 
 public:
@@ -143,9 +181,9 @@ public:
         std::lock_guard<std::mutex> lock(configMutex);
         nlohmann::json result;
 
-        #define CONFIG_ITEM(type, name, default_val) result[#name] = config.name;
+#define CONFIG_ITEM(type, name, default_val) result[#name] = config.name;
         CONFIG_ITEMS
-        #undef CONFIG_ITEM
+#undef CONFIG_ITEM
 
         return result;
     }
@@ -154,13 +192,12 @@ public:
         {
             std::lock_guard<std::mutex> lock(configMutex);
 
-            #define CONFIG_ITEM(type, name, default_val) \
-                if (data.contains(#name)) { \
-                    config.name = data.value(#name, config.name); \
-                }
-                CONFIG_ITEMS
-            #undef CONFIG_ITEM
-
+#define CONFIG_ITEM(type, name, default_val)                         \
+    if (data.contains(#name)) {                                      \
+        config.name = safe_json_get<type>(data, #name, config.name); \
+    }
+            CONFIG_ITEMS
+#undef CONFIG_ITEM
         }
         modify = true;
 
@@ -175,6 +212,8 @@ public:
     struct AppMode {
         std::string pkgName;
         std::string mode;
+        int up_fps;
+        int down_fps;
     };
 
     struct SchedulerConfig {
@@ -213,6 +252,8 @@ private:
                         AppMode appMode;
                         appMode.pkgName = rule.value("appPackage", "");
                         appMode.mode = rule.value("mode", "");
+                        appMode.up_fps = rule.value("up_fps", -1);
+                        appMode.down_fps = rule.value("down_fps", -1);
                         if (!appMode.pkgName.empty() && !appMode.mode.empty()) {
                             config.apps.push_back(appMode);
                         }
@@ -242,6 +283,8 @@ private:
                 nlohmann::json rule;
                 rule["appPackage"] = app.pkgName;
                 rule["mode"] = app.mode;
+                rule["up_fps"] = app.up_fps;
+                rule["down_fps"] = app.down_fps;
                 rulesArray.push_back(rule);
             }
             fileData["rules"] = rulesArray;
@@ -268,6 +311,8 @@ public:
             nlohmann::json rule;
             rule["appPackage"] = app.pkgName;
             rule["mode"] = app.mode;
+            rule["up_fps"] = app.up_fps;
+            rule["down_fps"] = app.down_fps;
             rulesArray.push_back(rule);
         }
         result["rules"] = rulesArray;
@@ -282,20 +327,24 @@ public:
                 config.defaultMode = data.value("defaultMode", config.defaultMode);
             }
 
-            config.apps.clear();
+            std::vector<SchedulerConfigTarget::AppMode> tmpapplist;
             if (data.contains("rules") && data["rules"].is_array()) {
                 for (const auto& rule : data["rules"]) {
-                    AppMode appMode;
+
                     if (rule.contains("appPackage")) {
-                        appMode.pkgName = rule.value("appPackage", "");
-                    }
-                    if (rule.contains("mode")) {
-                        appMode.mode = rule.value("mode", "");
-                    }
-                    if (!appMode.pkgName.empty() && !appMode.mode.empty()) {
-                        config.apps.push_back(appMode);
+                        if (rule["appPackage"].is_string()) {
+                            AppMode appMode;
+
+                            appMode.pkgName = rule.value("appPackage", "");
+                            appMode.mode = rule.value("mode", config.defaultMode);
+                            appMode.up_fps = rule.value("up_fps", -1);
+                            appMode.down_fps = rule.value("down_fps", -1);
+
+                            tmpapplist.push_back(appMode);
+                        }
                     }
                 }
+                config.apps = tmpapplist;
             }
         }
 

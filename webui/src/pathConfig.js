@@ -26,7 +26,6 @@ class PathConfig {
             return this.paths;
             
         } catch (error) {
-            
             // 备用方案：使用默认模式
             this.paths = {
                 availableModes: ['powersave', 'balance', 'performance', 'fast']

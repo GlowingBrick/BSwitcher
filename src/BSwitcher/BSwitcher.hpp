@@ -4,6 +4,7 @@
 #include <JSONSocketModule/ConfigModule.hpp>
 #include <JSONSocketModule/InformationModule.hpp>
 #include <JSONSocketModule/MonitorModule.hpp>
+#include <JSONSocketModule/DynamicFps.hpp>
 #include <chrono>
 #include <configlist.hpp>
 #include <filesystem>
@@ -14,6 +15,7 @@
 #include <sched.h>
 #include <string>
 #include <thread>
+
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
 typedef struct {
@@ -35,6 +37,7 @@ private:
     std::shared_ptr<SimpleDataTarget> availableModesTarget;
     std::shared_ptr<PowerMonitorTarget> powerMonitorTarget;
     std::shared_ptr<ConfigButtonTarget> configButtonTarget;
+    std::shared_ptr<DynamicFpsTarget> dynamicFpsTarget;
 
     std::shared_ptr<FileWatcher> fileWatcher;  //管理inotify
 

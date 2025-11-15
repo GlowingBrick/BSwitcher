@@ -53,7 +53,9 @@ export class ConfigManager {
                 defaultMode: this.config.defaultMode,
                     rules: this.config.rules.map(rule => ({
                         appPackage: rule.appPackage,
-                        mode: rule.mode
+                        mode: rule.mode,
+                        up_fps: rule.up_fps,
+                        down_fps: rule.down_fps,
                     }))
             };
 
@@ -81,12 +83,14 @@ export class ConfigManager {
     }
 
     // 添加规则
-    async addRule(appPackage, mode) {
+    async addRule(appPackage, mode, up_fps, down_fps) {
         const appName = this.appLoader.getAppName(appPackage);
 
         const rule = {
             appPackage, // 包名作为唯一标识
-            mode
+            mode,
+            up_fps,
+            down_fps
         };
         
         // 检查是否已存在该应用的规则，如果存在则更新

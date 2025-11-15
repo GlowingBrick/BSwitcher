@@ -23,18 +23,37 @@ export class UIManager {
         
         this.configFields = [];
         this.configCategories = {};
+
+        this.availableFps = [-1]; // 默认包含-1
     }
 
     // 初始化UI
     async init() {
         await this.loadConfigFields();
         await this.loadSystemInfo();
+        await this.loadAvailableFps();
         this.bindEvents();
         this.renderDefaultMode();
         this.renderRulesList();
         this.populateModeSelects();
         this.allApps = this.appLoader.getAvailableApps();
         this.populateAppSelect();
+    }
+
+    async loadAvailableFps() {
+        try {
+            const request = {
+                target: 'dynamicFps',
+                mode: 'read'
+            };
+            const fpsList = await this.socketClient.communicate(request);
+            
+            this.availableFps = [-1, ...fpsList.map(fps => Number(fps))];
+            console.log('可用FPS列表:', this.availableFps);
+        } catch (error) {
+            console.error('加载FPS列表失败:', error);
+            this.availableFps = [-1, 30, 60, 90, 120]; 
+        }
     }
 
     // 加载配置字段定义
@@ -591,10 +610,16 @@ export class UIManager {
             const appSearch = document.getElementById('appSearch');
             const appSelect = document.getElementById('appSelect');
             const modeSelect = document.getElementById('modeSelect');
+            const downFpsSelect = document.getElementById('downFpsSelect');
+            const upFpsSelect = document.getElementById('upFpsSelect');
 
             if (appSearch) appSearch.value = '';
             if (appSelect) appSelect.value = '';
             if (modeSelect) modeSelect.value = this.configManager.getConfig().defaultMode;
+            
+            // 设置整数值，而不是字符串
+            if (downFpsSelect) downFpsSelect.value = -1;
+            if (upFpsSelect) upFpsSelect.value = -1;
 
             // 显示所有应用
             this.populateAppSelect();
@@ -691,11 +716,14 @@ export class UIManager {
     populateModeSelects() {
         const defaultModeSelect = document.getElementById('defaultMode');
         const modeSelect = document.getElementById('modeSelect');
+        const downFpsSelect = document.getElementById('downFpsSelect');
+        const upFpsSelect = document.getElementById('upFpsSelect');
 
-        if (!defaultModeSelect || !modeSelect) return;
+        if (!defaultModeSelect || !modeSelect || !downFpsSelect || !upFpsSelect) return;
 
         const availableModes = this.configManager.getAvailableModes();
 
+        // 填充模式选择框
         [defaultModeSelect, modeSelect].forEach(select => {
             select.innerHTML = '';
             availableModes.forEach(mode => {
@@ -706,9 +734,24 @@ export class UIManager {
             });
         });
 
+        // 填充FPS选择框
+        [downFpsSelect, upFpsSelect].forEach(select => {
+            select.innerHTML = '';
+            this.availableFps.forEach(fps => {
+                const option = document.createElement('option');
+                option.value = fps; // 这里fps应该是数字，不是字符串
+                option.textContent = fps === -1 ? '默认' : `${fps} FPS`;
+                select.appendChild(option);
+            });
+        });
+
         // 设置默认模式当前值
         const config = this.configManager.getConfig();
         defaultModeSelect.value = config.defaultMode;
+        
+        // 设置默认FPS值
+        downFpsSelect.value = -1;
+        upFpsSelect.value = -1;
     }
 
     // 渲染默认模式
@@ -736,12 +779,17 @@ export class UIManager {
             const appName = this.appLoader.getAppName(rule.appPackage);
             const modeName = rule.mode;
             
+            // 格式化FPS显示
+            const formatFps = (fps) => fps === -1 ? '默认' : `${fps}`;
+            const downFpsText = rule.down_fps !== undefined ? formatFps(rule.down_fps) : '默认';
+            const upFpsText = rule.up_fps !== undefined ? formatFps(rule.up_fps) : '默认';
+            
             return `
                 <div class="rule-item">
                     <div class="rule-info">
                         <div class="rule-name" title="${appName}">${appName}</div>
-                        <div class="rule-details" title="模式: ${modeName} | 包名: ${rule.appPackage}">
-                            模式: ${modeName} | 包名: ${rule.appPackage}
+                        <div class="rule-details" title="模式: ${modeName} | FPS: ${downFpsText} - ${upFpsText}">
+                            模式: ${modeName} | FPS: ${downFpsText} - ${upFpsText}
                         </div>
                     </div>
                     <div class="rule-actions">
@@ -763,11 +811,17 @@ export class UIManager {
     async saveRule() {
         const appSelect = document.getElementById('appSelect');
         const modeSelect = document.getElementById('modeSelect');
+        const downFpsSelect = document.getElementById('downFpsSelect');
+        const upFpsSelect = document.getElementById('upFpsSelect');
 
-        if (!appSelect || !modeSelect) return;
+        if (!appSelect || !modeSelect || !downFpsSelect || !upFpsSelect) return;
 
         const appPackage = appSelect.value;
         const mode = modeSelect.value;
+        
+        // 确保FPS值为整数类型
+        const downFps = downFpsSelect.value === '' ? -1 : parseInt(downFpsSelect.value);
+        const upFps = upFpsSelect.value === '' ? -1 : parseInt(upFpsSelect.value);
 
         if (!appPackage) {
             this.showToast('请选择应用');
@@ -781,10 +835,11 @@ export class UIManager {
         }
 
         try {
-            await this.configManager.addRule(appPackage, mode);
+            await this.configManager.addRule(appPackage, mode, upFps, downFps);
             this.renderRulesList();
             this.hideModal();
         } catch (error) {
+            this.showToast('保存规则失败: ' + error.message);
         }
     }
 
@@ -933,6 +988,11 @@ export class UIManager {
                     return pathConfig.getAvailableModes().map(mode => ({
                         value: mode,
                         label: mode
+                    }));
+                case 'availableFps':
+                    return this.availableFps.map(fps => ({
+                        value: fps,
+                        label: fps === -1 ? '默认' : `${fps} FPS`
                     }));
                 default:
                     return [];

@@ -11,12 +11,12 @@ std::string BSwitcher::command_callback(const std::string& key) {  //前端中�
 
 int BSwitcher::init_service() {
     jsonSocket = std::make_shared<JSONSocket>("/dev/BSwitcher");
-
     mainConfigTarget = std::make_shared<MainConfigTarget>();  // 配置初始化
     schedulerConfigTarget = std::make_shared<SchedulerConfigTarget>();
     appListTarget = std::make_shared<ApplistConfigTarget>();
     availableModesTarget = std::make_shared<SimpleDataTarget>("availableModes", nlohmann::json::array({"powersave", "balance", "performance", "fast"}));
-    powerMonitorTarget = std::make_shared<PowerMonitorTarget>(&currentApp,&mainConfigTarget->config.dual_battery);
+    powerMonitorTarget = std::make_shared<PowerMonitorTarget>(&currentApp, &mainConfigTarget->config.dual_battery);
+    dynamicFpsTarget = std::make_shared<DynamicFpsTarget>();
     configButtonTarget = std::make_shared<ConfigButtonTarget>(
         [this](const std::string& key) {
             return command_callback(key);
@@ -43,7 +43,7 @@ int BSwitcher::init_service() {
     jsonSocket->registerConfigTarget(availableModesTarget);
     jsonSocket->registerConfigTarget(powerMonitorTarget);
     jsonSocket->registerConfigTarget(configButtonTarget);
-
+    jsonSocket->registerConfigTarget(dynamicFpsTarget);
     if (!jsonSocket->initialize()) {  //启动UNIX Socket
         return 0;
     }
@@ -107,10 +107,20 @@ int BSwitcher::load_config() {                                         //在此�
         fileWatcher->cleanup();
     }
 
-    if(!mainConfigTarget->config.custom_mode.empty()){
+    if (!mainConfigTarget->config.custom_mode.empty()) {
         availableModesTarget->reLoad(nlohmann::json::array({"powersave", "balance", "performance", "fast", mainConfigTarget->config.custom_mode}));
-    }else{
+    } else {
         availableModesTarget->reLoad(nlohmann::json::array({"powersave", "balance", "performance", "fast"}));
+    }
+
+    if (mainConfigTarget->config.dynamic_fps) {  //动态刷新率
+        dynamicFpsTarget->using_backdoor.store(mainConfigTarget->config.fps_backdoor, std::memory_order_relaxed);
+        dynamicFpsTarget->backdoorid.store(mainConfigTarget->config.fps_backdoor_id, std::memory_order_relaxed);
+
+        dynamicFpsTarget->init();
+        dynamicFpsTarget->down_during_ms.store(mainConfigTarget->config.fps_idle_time, std::memory_order_relaxed);
+    } else {
+        dynamicFpsTarget->stop();
     }
 
     if (!staticMode) {                                                                      //非静态模式下
@@ -314,7 +324,7 @@ void BSwitcher::main_loop() {
                     }
                 }
             }
-            mainModify = false; //清除修改标记
+            mainModify = false;  //清除修改标记
             lastMode = "";
         }
 
@@ -324,6 +334,8 @@ void BSwitcher::main_loop() {
 
         {
             std::unique_lock<std::mutex> mLock(mainMutex);
+            int ufps = mainConfig.up_fps > 0 ? mainConfig.up_fps : 120;
+            int dfps = mainConfig.down_fps > 0 ? mainConfig.down_fps : 60;
 
             timeset = 40000;
             if (!ScreenState()) {
@@ -333,7 +345,8 @@ void BSwitcher::main_loop() {
 
             } else if (getBatteryLevel() < mainConfig.low_battery_threshold) {  //低电量
                 newMode = "powersave";
-
+                ufps = 60;
+                dfps = 60;
             } else {
                 newMode = schedulerConfig.defaultMode;
                 {
@@ -342,13 +355,19 @@ void BSwitcher::main_loop() {
 
                     if (!schedulerConfig.apps.empty()) {  //为空时跳过
                         currentApp = topAppDetector.getForegroundApp();
-
                         LOGD("CurrentAPP: %s", currentApp.c_str());
+
                         if (!currentApp.empty()) {                        //未获取到时跳过
                             for (const auto& app : schedulerConfig.apps)  // 匹配应用列表
                             {                                             // 遍历app列表
                                 if (app.pkgName == currentApp) {
                                     newMode = app.mode;
+                                    if (app.down_fps > 0) {
+                                        dfps = app.down_fps;
+                                    }
+                                    if (app.up_fps > 0) {
+                                        ufps = app.up_fps;
+                                    }
                                     break;
                                 }
                                 std::this_thread::sleep_for(std::chrono::milliseconds(1));  // 避免负载集中
@@ -357,6 +376,8 @@ void BSwitcher::main_loop() {
                     }
                 }
             }
+            dynamicFpsTarget->up_fps.store(ufps, std::memory_order_relaxed);
+            dynamicFpsTarget->down_fps.store(dfps, std::memory_order_relaxed);
         }
         if (sceneStrict) {  //严格scene时
             static std::string lastapp = "";

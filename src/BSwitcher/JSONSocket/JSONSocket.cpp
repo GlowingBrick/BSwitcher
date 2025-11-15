@@ -115,7 +115,7 @@ std::string JSONSocket::handleRequest(const nlohmann::json& request) {
                 error_response["message"] = "Missing data field for write operation";
                 return error_response.dump();
             }
-            
+            LOGD("write input: %s", request["data"].dump().c_str());
             nlohmann::json result = target->write(request["data"]); //write事件
             LOGD("%s write response: %s", targetName.c_str(), result.dump().c_str());
             return result.dump();
