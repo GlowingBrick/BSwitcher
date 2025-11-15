@@ -63,6 +63,8 @@ private:
 
     bool dummy_write_mode(const std::string& mode);  //空的写函数，防段错误
 
+    void init_thread();
+
     int load_config();  //在此加载配置
 
     bool ScreenState();

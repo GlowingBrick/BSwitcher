@@ -91,14 +91,14 @@ const nlohmann::json CONFIG_SCHEMA = {                             //定义前�
     {{"key", "fps_backdoor"},
      {"type", "checkbox"},
      {"label", "使用Backdoor"},
-     {"description", "据说兼容更好, 那么代价呢？"},
+     {"description", "据说更强兼容更好, 可能引发问题, 可能须重启"},
      {"category", "动态刷新率"},
     {"dependsOn", {{"field", "dynamic_fps"}, {"condition", true}}}},
 
     {{"key", "fps_backdoor_id"},
      {"type", "number"},
      {"label", "SERVICE CODE"},
-     {"description", "Backdoor使用.一般1035,据说个别设备是1036"},
+     {"description", "指向DisplayModeRecord,一般1035"},
      {"category", "动态刷新率"},
     {"dependsOn", {{"field", "dynamic_fps"}, {"condition", true}}}}};
 

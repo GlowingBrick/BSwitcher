@@ -85,15 +85,27 @@ bool BSwitcher::dummy_write_mode(const std::string& mode) {  //空的写函数�
     return 1;
 }
 
-int BSwitcher::load_config() {                                         //在此加载配置
-    std::lock_guard<std::mutex> mLock(mainConfigTarget->configMutex);  // 获取锁
-
-    if (mainConfigTarget->config.power_monitoring)  // 是否启用功耗监控
+void BSwitcher::init_thread() {
+    if (mainConfigTarget->config.power_monitoring)  // 功耗监控
     {
         powerMonitorTarget->start();
     } else {
         powerMonitorTarget->stop();
     }
+
+    if (mainConfigTarget->config.dynamic_fps) {  //动态刷新率
+        dynamicFpsTarget->using_backdoor.store(mainConfigTarget->config.fps_backdoor, std::memory_order_relaxed);
+        dynamicFpsTarget->backdoorid.store(mainConfigTarget->config.fps_backdoor_id, std::memory_order_relaxed);
+
+        dynamicFpsTarget->init();
+        dynamicFpsTarget->down_during_ms.store(mainConfigTarget->config.fps_idle_time, std::memory_order_relaxed);
+    } else {
+        dynamicFpsTarget->stop();
+    }
+}
+
+int BSwitcher::load_config() {                                         //在此加载配置
+    std::lock_guard<std::mutex> mLock(mainConfigTarget->configMutex);  // 获取锁
 
     if (mainConfigTarget->config.poll_interval <= 1) {  //间隔时间为1以下时
         sleepDuring = std::chrono::milliseconds(100);
@@ -113,15 +125,7 @@ int BSwitcher::load_config() {                                         //在此�
         availableModesTarget->reLoad(nlohmann::json::array({"powersave", "balance", "performance", "fast"}));
     }
 
-    if (mainConfigTarget->config.dynamic_fps) {  //动态刷新率
-        dynamicFpsTarget->using_backdoor.store(mainConfigTarget->config.fps_backdoor, std::memory_order_relaxed);
-        dynamicFpsTarget->backdoorid.store(mainConfigTarget->config.fps_backdoor_id, std::memory_order_relaxed);
-
-        dynamicFpsTarget->init();
-        dynamicFpsTarget->down_during_ms.store(mainConfigTarget->config.fps_idle_time, std::memory_order_relaxed);
-    } else {
-        dynamicFpsTarget->stop();
-    }
+    init_thread();
 
     if (!staticMode) {                                                                      //非静态模式下
         write_mode = std::bind(&BSwitcher::dummy_write_mode, this, std::placeholders::_1);  // 防段错误
@@ -211,9 +215,9 @@ int BSwitcher::load_config() {                                         //在此�
                 sState = mainConfigTarget->config.mode_file;
                 infoConfigTarget->setData("Custom", "", "");
             } else {  //没有可用的配置
-                infoConfigTarget->setData("No config available", "", "");
+                infoConfigTarget->setData("未对接调度", "", "");
                 LOGE("No config available, Waiting for configuration.");
-
+                sState = "/dev/null";
                 return -1;
             }
         }
@@ -312,19 +316,9 @@ void BSwitcher::main_loop() {
     LOGD("Ready, entering main loop.");
     while (1)  // 主循环
     {
-        if (unlikely(mainModify)) {     //检查配置文件是否修改
-            if (load_config() == -1) {  //加载配置
-                while (1) {             // 无效数据，重试
-                    sleep(10);
-                    if (mainModify == true) {
-                        if (load_config() == 0) {
-                            break;
-                        }
-                        mainModify = false;
-                    }
-                }
-            }
-            mainModify = false;  //清除修改标记
+        if (unlikely(mainModify)) {  //检查配置文件是否修改
+            load_config();           //加载配置
+            mainModify = false;      //清除修改标记
             lastMode = "";
         }
 
