@@ -6,6 +6,7 @@
 #include <fstream>
 #include <mutex>
 #include <string>
+#include <sys/stat.h>
 #include <vector>
 
 //这是真正配置文件里面有的
@@ -27,11 +28,11 @@
     CONFIG_ITEM(bool, fps_backdoor, false)            \
     CONFIG_ITEM(int, fps_backdoor_id, 1035)
 
-
 // 文件配置目标基类
 class FileConfigTarget : public ConfigTarget {
 protected:
     std::string filename;
+    time_t last_stat_time_ = 0;
 
 public:
     explicit FileConfigTarget(const std::string& filename) : filename(filename) {}
@@ -73,9 +74,11 @@ class MainConfigTarget : public FileConfigTarget {
 public:
     // 内存结构体 - 公开访问
     struct MainConfig {
+
 #define CONFIG_ITEM(type, name, default_val) type name;
         CONFIG_ITEMS
 #undef CONFIG_ITEM
+
     } config;
 
     // 互斥锁 - 公开访问
@@ -84,12 +87,23 @@ public:
 private:
     // 默认配置
     const nlohmann::json DEFAULT_CONFIG = {
+
 #define CONFIG_ITEM(type, name, default_val) {#name, default_val},
         CONFIG_ITEMS
 #undef CONFIG_ITEM
+
     };
 
     void loadFromFile() {
+        struct stat file_stat;
+        stat(filename.c_str(), &file_stat);
+        if (last_stat_time_ == file_stat.st_mtime) {
+            return;
+        }
+        last_stat_time_ = file_stat.st_mtime;
+
+        LOGD("Loading :" , filename.c_str());
+
         auto fileData = FileConfigTarget::read();
         bool hasValidData = false;
 
@@ -128,6 +142,7 @@ private:
         nlohmann::json fileData;
         {
             std::lock_guard<std::mutex> lock(configMutex);
+
 #define CONFIG_ITEM(type, name, default_val) \
     fileData[#name] = config.name;
             CONFIG_ITEMS
@@ -178,6 +193,8 @@ public:
     }
 
     nlohmann::json read() override {
+        loadFromFile();
+
         std::lock_guard<std::mutex> lock(configMutex);
         nlohmann::json result;
 
@@ -231,6 +248,14 @@ private:
         {"rules", nlohmann::json::array()}};
 
     void loadFromFile() {
+        struct stat file_stat;
+        stat(filename.c_str(), &file_stat);
+        if (last_stat_time_ == file_stat.st_mtime) {
+            return;
+        }
+        last_stat_time_ = file_stat.st_mtime;
+
+        LOGD("Loading :" , filename.c_str());
         auto fileData = FileConfigTarget::read();
         bool hasValidData = false;
 
@@ -302,6 +327,8 @@ public:
     }
 
     nlohmann::json read() override {
+        loadFromFile();
+
         std::lock_guard<std::mutex> lock(configMutex);
         nlohmann::json result;
         result["defaultMode"] = config.defaultMode;
