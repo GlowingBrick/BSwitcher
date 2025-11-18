@@ -6,7 +6,6 @@
 #include <JSONSocketModule/MonitorModule.hpp>
 #include <JSONSocketModule/DynamicFps.hpp>
 #include <chrono>
-#include <configlist.hpp>
 #include <filesystem>
 #include <inotifywatcher.hpp>
 #include <iostream>

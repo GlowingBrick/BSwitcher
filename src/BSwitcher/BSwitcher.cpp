@@ -1,4 +1,5 @@
 #include "BSwitcher.hpp"
+#include <configlist.hpp>
 
 std::string BSwitcher::command_callback(const std::string& key) {  //前端中按钮的响应
     if (key == "clear_monitoring") {
@@ -17,23 +18,52 @@ int BSwitcher::init_service() {
     availableModesTarget = std::make_shared<SimpleDataTarget>("availableModes", nlohmann::json::array({"powersave", "balance", "performance", "fast"}));
     powerMonitorTarget = std::make_shared<PowerMonitorTarget>(&currentApp, &mainConfigTarget->config.dual_battery);
     dynamicFpsTarget = std::make_shared<DynamicFpsTarget>();
+    configlistTarget = std::make_shared<SimpleDataTarget>("configlist", CONFIG_SCHEMA);
     configButtonTarget = std::make_shared<ConfigButtonTarget>(
         [this](const std::string& key) {
             return command_callback(key);
         });
+
+    auto combined_config = CONFIG_SCHEMA;
 
     if (staticMode) {
         sState = _staticData.entry;
         infoConfigTarget = std::make_shared<InfoConfigTarget>(_staticData.name, _staticData.author, _staticData.version);
         mainConfigTarget->config.scene = false;
         write_mode = std::bind(&BSwitcher::unscene_write_mode, this, std::placeholders::_1);
-        configlistTarget = std::make_shared<SimpleDataTarget>("configlist", CONFIG_SCHEMA);  //不包含接口配置
     } else {
         infoConfigTarget = std::make_shared<InfoConfigTarget>("Custom", "unknow", "0.0.0");
-        auto combined_config = CONFIG_SCHEMA;
-        combined_config.insert(combined_config.end(), CONFIG_PCFG.begin(), CONFIG_PCFG.end());
-        configlistTarget = std::make_shared<SimpleDataTarget>("configlist", combined_config);  //使用合并的配置
+        combined_config.insert(combined_config.end(), CONFIG_PCFG.begin(), CONFIG_PCFG.end());  //合并配置
     }
+
+    if (dynamicFpsTarget->allfpsmap.size() <= 1) {
+        mainConfigTarget->config.screen_resolution = dynamicFpsTarget->allfpsmap.begin()->first;  //唯一的分辨率
+    } else {                                                                                      //有不止一个分辨率
+        nlohmann::json resolist = nlohmann::json::array();
+        for (const auto& [key, value] : dynamicFpsTarget->allfpsmap) {
+            resolist.push_back(nlohmann::json({{"value", key}, {"label", key}}));
+            LOGD("Discovery resolution: %s", key.c_str());
+        }
+        CONFIG_RESO[0]["options"] = resolist;
+        combined_config.insert(combined_config.end(), CONFIG_RESO.begin(), CONFIG_RESO.end());  //添加选项
+
+        if (!dynamicFpsTarget->allfpsmap.count(mainConfigTarget->config.screen_resolution)) {  //当前分辨率不存在
+            auto max_it = dynamicFpsTarget->allfpsmap.begin();
+            for (auto it = dynamicFpsTarget->allfpsmap.begin(); it != dynamicFpsTarget->allfpsmap.end(); ++it) {
+                if (it->second.size() > max_it->second.size()) {  //默认配置为数量最多的项
+                    max_it = it;
+                } else if (it->second.size() == max_it->second.size()) {  //相同数量配置为分辨率大的项
+                    if (DynamicFpsTarget::countPixel(it->first) > DynamicFpsTarget::countPixel(max_it->first)) {
+                        max_it = it;
+                    }
+                }
+            }
+
+            mainConfigTarget->config.screen_resolution = max_it->first; //装进配置
+        }
+    }
+
+    configlistTarget->reLoad(combined_config);  //装载设置列表
 
     jsonSocket->registerConfigTarget(mainConfigTarget);  // 注册所有模块
     jsonSocket->registerConfigTarget(schedulerConfigTarget);
@@ -94,11 +124,18 @@ void BSwitcher::init_thread() {
     }
 
     if (mainConfigTarget->config.dynamic_fps) {  //动态刷新率
+        //传入配置
+        auto it = dynamicFpsTarget->allfpsmap.find(mainConfigTarget->config.screen_resolution);
+        if (it != dynamicFpsTarget->allfpsmap.end()) {
+            dynamicFpsTarget->fpsmap.store(&it->second, std::memory_order_relaxed);
+        }
+
         dynamicFpsTarget->using_backdoor.store(mainConfigTarget->config.fps_backdoor, std::memory_order_relaxed);
         dynamicFpsTarget->backdoorid.store(mainConfigTarget->config.fps_backdoor_id, std::memory_order_relaxed);
-
-        dynamicFpsTarget->init();
         dynamicFpsTarget->down_during_ms.store(mainConfigTarget->config.fps_idle_time, std::memory_order_relaxed);
+
+        //启动
+        dynamicFpsTarget->init();
     } else {
         dynamicFpsTarget->stop();
     }

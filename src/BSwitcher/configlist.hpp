@@ -1,3 +1,5 @@
+#ifndef CONFIG_LIST
+#define CONFIG_LIST
 /*前端的设置页面由此定义*/
 #include <nlohmann/json.hpp>
 const nlohmann::json CONFIG_SCHEMA = {                             //定义前端的配置页面
@@ -63,7 +65,7 @@ const nlohmann::json CONFIG_SCHEMA = {                             //定义前�
      {"label", "动态刷新率"},
      {"description", "启用动态刷新率"},
      {"category", "动态刷新率"},
-     {"affects", {"up_fps"}}},
+     {"affects", {"up_fps","down_fps","fps_idle_time","screen_resolution"}}},
 
     {{"key", "up_fps"},
      {"type", "select"},
@@ -98,7 +100,7 @@ const nlohmann::json CONFIG_SCHEMA = {                             //定义前�
     {{"key", "fps_backdoor_id"},
      {"type", "number"},
      {"label", "SERVICE CODE"},
-     {"description", "指向DisplayModeRecord,一般1035"},
+     {"description", "Backdoor使用。指向DisplayModeRecord,一般1035"},
      {"category", "动态刷新率"},
     {"dependsOn", {{"field", "dynamic_fps"}, {"condition", true}}}}};
 
@@ -124,3 +126,14 @@ const nlohmann::json CONFIG_PCFG = {
      {"description", "手动指定模式配置文件路径"},
      {"category", "模式设置"},
      {"dependsOn", {{"field", "scene"}, {"condition", false}}}}};
+
+nlohmann::json CONFIG_RESO={    //大多数设备用不到这一项
+    {{"key", "screen_resolution"},
+     {"type", "select"},
+     {"label", "屏幕分辨率"},
+     {"description", "Backdoor使用。找到多个显示模式,可能需要指定。需要选定与主屏幕匹配的选项"},
+     {"category", "动态刷新率"},
+    {"dependsOn", {{"field", "dynamic_fps"}, {"condition", true}}}}
+};
+
+#endif

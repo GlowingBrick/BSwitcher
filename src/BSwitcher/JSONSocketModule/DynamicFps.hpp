@@ -23,11 +23,11 @@ private:
     std::atomic<std::chrono::steady_clock::time_point> _target_time;
     std::atomic<bool> _imrun{false};
 
-    std::map<int, int> fpsmap;
-
     nlohmann::json fpslist;
 
 public:
+    const std::unordered_map<std::string, std::map<int, int>> allfpsmap;  //带分辨率的列表
+    std::atomic<const std::map<int, int>*> fpsmap;                                         //当前列表
     std::atomic<int> up_fps{120};
     std::atomic<int> down_fps{60};
     std::atomic<int> down_during_ms{2500};
@@ -47,7 +47,8 @@ public:
         return {{"status", "error"}, {"message", "DynamicFps target is read-only"}};
     }
 
-    DynamicFpsTarget() {
+    DynamicFpsTarget()
+        : allfpsmap(getResolutionToDisplayModes()) {
         std::vector<std::string> filePaths;
         try {
             for (const auto& entry : std::filesystem::directory_iterator("/dev/input")) {
@@ -59,10 +60,11 @@ public:
             LOGE("Failed to load input, DynamicFps could not be enabled.");
             return;
         }
-        fileWatcher = std::make_shared<FileWatcher>(filePaths, 300, IN_ACCESS); //一些设备使用IN_MODIFY没有响应
+        fileWatcher = std::make_shared<FileWatcher>(filePaths, 300, IN_ACCESS);  //一些设备使用IN_MODIFY没有响应
 
         fpslist = getAvailableRefreshRates();
-        fpsmap = getDisplayModeIdToFps();
+
+        fpsmap = &allfpsmap.begin()->second;    //随便指一个
     }
 
     void init() {
@@ -75,7 +77,7 @@ public:
     void stop() {
         if (running_.exchange(false)) {
             LOGD("DynamicFpsTarget Stoped");
-            fileWatcher->cleanup(); //cleanup会立即触发wait
+            fileWatcher->cleanup();  //cleanup会立即触发wait
             if (worker_thread_.joinable()) {
                 worker_thread_.join();
             }
@@ -119,45 +121,48 @@ private:
     void change_fps(int fps) {
         if (currentfps.exchange(fps, std::memory_order_relaxed) != fps) {
             LOGD("Frame rate changed to %d", fps);
-            if(!using_backdoor.load(std::memory_order_relaxed)){
+            if (!using_backdoor.load(std::memory_order_relaxed)) {
                 execute("/system/bin/cmd", "settings", "put", "system", "peak_refresh_rate", std::to_string(fps).c_str());
                 execute("/system/bin/cmd", "settings", "put", "system", "min_refresh_rate", std::to_string(fps).c_str());
                 execute("/system/bin/cmd", "settings", "put", "system", "miui_refresh_rate", std::to_string(fps).c_str());
                 execute("/system/bin/cmd", "settings", "put", "secure", "miui_refresh_rate", std::to_string(fps).c_str());
-            }else{
-                int id=getFpsId(fps)-1;
-                if(id<0){id=0;}
+            } else {
+                int id = getFpsId(fps) - 1;
+                if (id < 0) {
+                    id = 0;
+                }
 
-                execute("/system/bin/service", "call", "SurfaceFlinger", 
-                    std::to_string(backdoorid.load(std::memory_order_relaxed)).c_str(), 
-                    "i32", std::to_string(id).c_str());
+                execute("/system/bin/service", "call", "SurfaceFlinger",
+                        std::to_string(backdoorid.load(std::memory_order_relaxed)).c_str(),
+                        "i32", std::to_string(id).c_str());
             }
-
         }
     }
 
-    int getFpsId(int key) { //尝试选择一个最接近的fpsid.不保证map与vector
-        auto exact_it = fpsmap.find(key);
-        if (exact_it != fpsmap.end()) {
-            return exact_it->second;  
+    int getFpsId(int key) {  //尝试选择一个最接近的fpsid.不保证map与vector
+        auto tfpsmap = fpsmap.load(std::memory_order_relaxed);
+
+        auto exact_it = (*tfpsmap).find(key);
+        if (exact_it != (*tfpsmap).end()) {
+            return exact_it->second;
         }
-        
-        if (fpsmap.empty()) {
-            return 120; 
+
+        if ((*tfpsmap).empty()) {
+            return 120;
         }
-        
-        auto it = fpsmap.lower_bound(key);
-        
-        if (it == fpsmap.end()) {
-            return fpsmap.rbegin()->second;
+
+        auto it = (*tfpsmap).lower_bound(key);
+
+        if (it == (*tfpsmap).end()) {
+            return (*tfpsmap).rbegin()->second;
         }
-        
-        if (it == fpsmap.begin()) {
+
+        if (it == (*tfpsmap).begin()) {
 
             return it->second;
         }
         auto prev_it = std::prev(it);
-        
+
         int diff_prev = std::abs(key - prev_it->first);
         int diff_next = std::abs(it->first - key);
         return (diff_prev <= diff_next) ? prev_it->second : it->second;
@@ -251,10 +256,46 @@ public:
         return result;
     }
 
-    static std::map<int, int> getDisplayModeIdToFps() {
-        //记录id与fps对应关系。用于service call SurfaceFlinger 1035 i32 [id-1]
-        //似乎是这样
-        std::map<int, int> idToFps;
+    /*可能的内容：
+    # dumpsys display | grep DisplayModeRecord   
+      DisplayModeRecord{mMode={id=1, width=1800, height=2880, fps=120.00001, alternativeRefreshRates=[30.000002, 48.000004, 50.0, 60.000004, 90.0, 144.00002]}}
+      DisplayModeRecord{mMode={id=2, width=1800, height=2880, fps=144.00002, alternativeRefreshRates=[30.000002, 48.000004, 50.0, 60.000004, 90.0, 120.00001]}}
+      DisplayModeRecord{mMode={id=3, width=1800, height=2880, fps=90.0, alternativeRefreshRates=[30.000002, 48.000004, 50.0, 60.000004, 120.00001, 144.00002]}}
+      DisplayModeRecord{mMode={id=4, width=1800, height=2880, fps=60.000004, alternativeRefreshRates=[30.000002, 48.000004, 50.0, 90.0, 120.00001, 144.00002]}}
+      DisplayModeRecord{mMode={id=5, width=1800, height=2880, fps=50.0, alternativeRefreshRates=[30.000002, 48.000004, 60.000004, 90.0, 120.00001, 144.00002]}}
+      DisplayModeRecord{mMode={id=6, width=1800, height=2880, fps=48.000004, alternativeRefreshRates=[30.000002, 50.0, 60.000004, 90.0, 120.00001, 144.00002]}}
+      DisplayModeRecord{mMode={id=7, width=1800, height=2880, fps=30.000002, alternativeRefreshRates=[48.000004, 50.0, 60.000004, 90.0, 120.00001, 144.00002]}}
+      DisplayModeRecord{mMode={id=19, width=1920, height=1080, fps=60.000004, alternativeRefreshRates=[]}}
+      DisplayModeRecord{mMode={id=20, width=1680, height=1050, fps=60.000004, alternativeRefreshRates=[]}}
+      DisplayModeRecord{mMode={id=21, width=1600, height=900, fps=60.000004, alternativeRefreshRates=[]}}
+      DisplayModeRecord{mMode={id=22, width=1280, height=1024, fps=60.000004, alternativeRefreshRates=[]}}
+      DisplayModeRecord{mMode={id=23, width=1440, height=900, fps=60.000004, alternativeRefreshRates=[]}}
+      DisplayModeRecord{mMode={id=24, width=1280, height=720, fps=60.000004, alternativeRefreshRates=[50.0]}}
+      DisplayModeRecord{mMode={id=25, width=1280, height=720, fps=50.0, alternativeRefreshRates=[60.000004]}}
+      DisplayModeRecord{mMode={id=26, width=1024, height=768, fps=60.000004, alternativeRefreshRates=[]}}
+      DisplayModeRecord{mMode={id=27, width=800, height=600, fps=60.000004, alternativeRefreshRates=[]}}
+      DisplayModeRecord{mMode={id=28, width=720, height=480, fps=60.000004, alternativeRefreshRates=[]}}
+      DisplayModeRecord{mMode={id=29, width=640, height=480, fps=60.000004, alternativeRefreshRates=[]}}
+      数据结构：
+      {
+        "1800x2880": {
+            {30, 7},
+            {48, 6},
+             ...
+        },
+        "1080x2400": {
+            {60, 8},
+            {90, 9},
+            {120, 10}
+            ......
+        },
+        .......
+    }
+
+    */
+
+    static std::unordered_map<std::string, std::map<int, int>> getResolutionToDisplayModes() { //解析所有显示模式
+        std::unordered_map<std::string, std::map<int, int>> resolutionModes;
 
         std::unique_ptr<FILE, decltype(&pclose)> pipe(popen("dumpsys display | grep DisplayModeRecord", "r"), pclose);
         if (!pipe) return {};
@@ -284,44 +325,95 @@ public:
             }
         };
 
-        size_t pos = 0;
-        while (pos < output.size()) {
+        std::istringstream iss(output);
+        std::string line;
 
-            auto idPos = output.find("id=", pos);  // 查找id
-            if (idPos == std::string::npos) break;
-
-            auto fpsPos = output.find("fps=", idPos);  // 查找fps
-            if (fpsPos == std::string::npos) break;
-
-            auto idStart = idPos + 3;
-            auto idEnd = output.find_first_of(", ", idStart);
-            if (idEnd == std::string::npos) break;
-
-            std::string idStr = output.substr(idStart, idEnd - idStart);
-            int id = 0;
-            try {
-                id = std::stoi(idStr);
-            } catch (...) {
-                pos = idEnd + 1;
+        while (std::getline(iss, line)) {
+            if (line.find("DisplayModeRecord") == std::string::npos) {
                 continue;
             }
 
-            auto fpsStart = fpsPos + 4;
-            auto fpsEnd = output.find_first_of(",}", fpsStart);
-            if (fpsEnd == std::string::npos) break;
+            int id = 0, width = 0, height = 0, fps = 0;
 
-            std::string fpsStr = output.substr(fpsStart, fpsEnd - fpsStart);
-            int fps = parseFps(fpsStr);
-
-            if (id > 0 && fps > 0) {
-                idToFps[fps] = id;
+            auto idPos = line.find("id=");
+            if (idPos != std::string::npos) {
+                auto idStart = idPos + 3;
+                auto idEnd = line.find_first_of(", ", idStart);
+                if (idEnd != std::string::npos) {
+                    try {
+                        id = std::stoi(line.substr(idStart, idEnd - idStart));
+                    } catch (...) {
+                        continue;
+                    }
+                }
             }
 
-            pos = fpsEnd + 1;
+            auto widthPos = line.find("width=");
+            if (widthPos != std::string::npos) {
+                auto widthStart = widthPos + 6;
+                auto widthEnd = line.find_first_of(", ", widthStart);
+                if (widthEnd != std::string::npos) {
+                    try {
+                        width = std::stoi(line.substr(widthStart, widthEnd - widthStart));
+                    } catch (...) {
+                        continue;
+                    }
+                }
+            }
+
+            auto heightPos = line.find("height=");
+            if (heightPos != std::string::npos) {
+                auto heightStart = heightPos + 7;
+                auto heightEnd = line.find_first_of(", ", heightStart);
+                if (heightEnd != std::string::npos) {
+                    try {
+                        height = std::stoi(line.substr(heightStart, heightEnd - heightStart));
+                    } catch (...) {
+                        continue;
+                    }
+                }
+            }
+
+            auto fpsPos = line.find("fps=");
+            if (fpsPos != std::string::npos) {              // 解析fps
+                auto fpsStart = fpsPos + 4;
+                auto fpsEnd = line.find_first_of(",}", fpsStart);
+                if (fpsEnd != std::string::npos) {
+                    std::string fpsStr = line.substr(fpsStart, fpsEnd - fpsStart);
+                    fps = parseFps(fpsStr);
+                }
+            }
+
+            if (id > 0 && width > 0 && height > 0 && fps > 0) {
+                std::string resolution = std::to_string(width) + "x" + std::to_string(height);
+                resolutionModes[resolution][fps] = id;
+                LOGD("Found: %s,%d,%d", resolution.c_str(), fps, id);
+            }
         }
 
-        return idToFps;
+        return resolutionModes;
     }
+
+    static std::pair<int,int> parseResolution(const std::string& resolution_str) {
+        size_t x_pos = resolution_str.find('x');
+        if (x_pos == std::string::npos || x_pos == 0 || x_pos == resolution_str.length() - 1) {
+            return {0,0}; 
+        }
+
+        try {
+            int width = std::stoi(resolution_str.substr(0, x_pos));
+            int height = std::stoi(resolution_str.substr(x_pos + 1));
+            return {width , height} ; 
+        } catch (const std::exception&) {
+            return {0,0}; 
+        }
+    }
+
+    static int countPixel(const std::string& resolution_str) {
+        auto t=parseResolution(resolution_str);
+        return t.first*t.second;
+    }
+
 };
 
 #endif

@@ -26,7 +26,8 @@
     CONFIG_ITEM(int, down_fps, 60)                    \
     CONFIG_ITEM(int, up_fps, 120)                     \
     CONFIG_ITEM(bool, fps_backdoor, false)            \
-    CONFIG_ITEM(int, fps_backdoor_id, 1035)
+    CONFIG_ITEM(int, fps_backdoor_id, 1035)           \
+    CONFIG_ITEM(std::string, screen_resolution, "")
 
 // 文件配置目标基类
 class FileConfigTarget : public ConfigTarget {
@@ -102,7 +103,7 @@ private:
         }
         last_stat_time_ = file_stat.st_mtime;
 
-        LOGD("Loading :" , filename.c_str());
+        LOGD("Loading : %s", filename.c_str());
 
         auto fileData = FileConfigTarget::read();
         bool hasValidData = false;
@@ -255,7 +256,7 @@ private:
         }
         last_stat_time_ = file_stat.st_mtime;
 
-        LOGD("Loading :" , filename.c_str());
+        LOGD("Loading : %s", filename.c_str());
         auto fileData = FileConfigTarget::read();
         bool hasValidData = false;
 
