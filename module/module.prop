@@ -1,6 +1,6 @@
 id=BSwitcher
 name=BSwitcher
-version=0.02dev
+version=0.02dev-2
 versionCode=02
 author=BCK
 description=轻量化的调度管理器
