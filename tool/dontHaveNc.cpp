@@ -43,9 +43,9 @@ public:
         std::vector<char> buffer(4096);
         std::string response;
         
-        // 设置接收超时（5秒）
+        // 设置接收超时（20秒）
         struct timeval tv;
-        tv.tv_sec = 5;
+        tv.tv_sec = 20;
         tv.tv_usec = 0;
         setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 

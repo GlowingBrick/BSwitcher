@@ -150,7 +150,7 @@ private:
             power_w = read_current_power_w();
 
             if (power_w <= 1e-12f) {
-                LOGD("Anomalous value detected, skipping.");
+                LOGW("Anomalous value detected, skipping.");
                 clock_gettime(CLOCK_MONOTONIC, &last_time);
                 continue;
             }
