@@ -603,7 +603,7 @@ export class UIManager {
     }
 
     // 显示模态框
-    showModal() {
+    async showModal() {
         if (this.modal) {
             this.modal.style.display = 'block';
             // 重置表单
@@ -612,6 +612,8 @@ export class UIManager {
             const modeSelect = document.getElementById('modeSelect');
             const downFpsSelect = document.getElementById('downFpsSelect');
             const upFpsSelect = document.getElementById('upFpsSelect');
+            const downFpsLabel = document.querySelector('label[for="downFpsSelect"]');
+            const upFpsLabel = document.querySelector('label[for="upFpsSelect"]');
 
             if (appSearch) appSearch.value = '';
             if (appSelect) appSelect.value = '';
@@ -620,6 +622,28 @@ export class UIManager {
             // 设置整数值，而不是字符串
             if (downFpsSelect) downFpsSelect.value = -1;
             if (upFpsSelect) upFpsSelect.value = -1;
+
+            try {
+                const request = {
+                    target: 'config',
+                    mode: 'read'
+                };
+                const result = await this.socketClient.communicate(request);
+                const isDynamicFpsEnabled = result.dynamic_fps || false;
+                
+                const shouldShowFpsControls = isDynamicFpsEnabled;  //在未启用动态fps时不显示选择框
+                
+                if (downFpsSelect) downFpsSelect.style.display = shouldShowFpsControls ? 'block' : 'none';
+                if (upFpsSelect) upFpsSelect.style.display = shouldShowFpsControls ? 'block' : 'none';
+                if (downFpsLabel) downFpsLabel.style.display = shouldShowFpsControls ? 'block' : 'none';
+                if (upFpsLabel) upFpsLabel.style.display = shouldShowFpsControls ? 'block' : 'none';
+                
+            } catch (error) {
+                if (downFpsSelect) downFpsSelect.style.display = 'none';
+                if (upFpsSelect) upFpsSelect.style.display = 'none';
+                if (downFpsLabel) downFpsLabel.style.display = 'none';
+                if (upFpsLabel) upFpsLabel.style.display = 'none';
+            }
 
             // 显示所有应用
             this.populateAppSelect();
@@ -783,13 +807,20 @@ export class UIManager {
             const formatFps = (fps) => fps === -1 ? '默认' : `${fps}`;
             const downFpsText = rule.down_fps !== undefined ? formatFps(rule.down_fps) : '默认';
             const upFpsText = rule.up_fps !== undefined ? formatFps(rule.up_fps) : '默认';
+
+            let detailsContent;
+            if (downFpsText === '默认' && upFpsText === '默认') {
+                detailsContent = `模式: ${modeName}`;   //都为默认时不显示
+            } else {
+                detailsContent = `模式: ${modeName} | FPS: ${downFpsText} - ${upFpsText}`;
+            }
             
             return `
                 <div class="rule-item">
                     <div class="rule-info">
                         <div class="rule-name" title="${appName}">${appName}</div>
-                        <div class="rule-details" title="模式: ${modeName} | FPS: ${downFpsText} - ${upFpsText}">
-                            模式: ${modeName} | FPS: ${downFpsText} - ${upFpsText}
+                        <div class="rule-details" title="${detailsContent}">
+                            ${detailsContent}
                         </div>
                     </div>
                     <div class="rule-actions">

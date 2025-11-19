@@ -1,9 +1,12 @@
 ## **BSwitcher**
-一个轻量化的、无需保活的调度器管理器
+
+Android的一个轻量化的、无需保活的调度器管理器模块
 
 使用webui进行配置。magisk用户可能需要安装ksuwebui
 
 ## **配置文件**
+
+主程序默认在二进制文件所在位置读取、建立配置文件。通过-p参数可指定其他路径
 
 ### static_data.json 
 **static_data.json不会被程序主动创建。它存在且可用时，程序将不再尝试/data/powercfg.json，也不再接受调度器接口文件的配置，而是使用本文件的内容覆盖**
@@ -31,6 +34,7 @@
 此文件会主动创建。但运行中很少再加载
 - poll_interval: 轮询最小间隔。在非轮询模式下，这标记相邻两次触发的最小间隔
 - low_battery_threshold: 电量低于此值时，将触发切换省电模式与低刷新率
+- enable_dynamic: 是否启用动态切换。为false时不会将不再实现动态切换
 - scene: 使用scene定义的接口，即/data/powercfg.json          
 - scene_strict: 尝试模仿scene严格模式的部分行为，包括环境变量等
 - mode_file: 在不使用scene模式下，可用手动指定模式的写入文件     
@@ -71,7 +75,7 @@ Webui通过Unix Socket与服务对接。默认位置/dev/BSwitcher。可以手�
 
 通信后服务将返回结果并主动断开连接。
 
-示例
+示例 (实际使用中不允许注释)
 ```json
 {
     "target":"config",  //访问主配置
@@ -104,3 +108,17 @@ cd build
 cmake ..
 make -j4
 ```
+
+## **引用依赖**
+BSwitcher：
+- [nlohmann json](https://github.com/nlohmann/json) - MIT License
+
+Webui:
+- [React](https://reactjs.org/) - MIT License
+- [Vite](https://vitejs.dev/) - MIT License
+
+    及他们的依赖。详见webui/package.json
+
+此外很大程度上参考
+- [Dfps](https://github.com/yc9559/dfps)
+

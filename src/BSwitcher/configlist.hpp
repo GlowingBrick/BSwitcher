@@ -11,6 +11,12 @@ const nlohmann::json CONFIG_SCHEMA = {                             //定义前�
      {"max", 100},                                                 //最大
      {"category", "电源管理"}},                                    //分类
 
+    {{"key", "enable_dynamic"},
+     {"type", "checkbox"},
+     {"label", "启用动态切换"},
+     {"description", "核心功能，根据前台应用切换调度模式"},
+     {"category", "模式设置"}},
+
     {{"key", "poll_interval"},
      {"type", "number"},
      {"label", "最小轮询间隔"},

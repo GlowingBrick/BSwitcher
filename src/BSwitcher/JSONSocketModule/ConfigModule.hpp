@@ -14,6 +14,7 @@
     CONFIG_ITEM(int, poll_interval, 2)                \
     CONFIG_ITEM(int, low_battery_threshold, 15)       \
     CONFIG_ITEM(bool, scene, true)                    \
+    CONFIG_ITEM(bool, enable_dynamic, true)           \
     CONFIG_ITEM(std::string, mode_file, "")           \
     CONFIG_ITEM(std::string, screen_off, "powersave") \
     CONFIG_ITEM(bool, scene_strict, false)            \

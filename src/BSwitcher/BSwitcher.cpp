@@ -59,7 +59,7 @@ int BSwitcher::init_service() {
                 }
             }
 
-            mainConfigTarget->config.screen_resolution = max_it->first; //装进配置
+            mainConfigTarget->config.screen_resolution = max_it->first;  //装进配置
         }
     }
 
@@ -111,7 +111,7 @@ bool BSwitcher::scene_write_mode(const std::string& mode) {  // scene模式写mo
     return result == 0;
 }
 
-bool BSwitcher::dummy_write_mode(const std::string& mode) {  //空的写函数，防段错误
+bool BSwitcher::dummy_write_mode(const std::string& mode) {  //空的写函数，不实际操作
     return 1;
 }
 
@@ -164,8 +164,8 @@ int BSwitcher::load_config() {                                         //在此�
 
     init_thread();
 
-    if (!staticMode) {                                                                      //非静态模式下
-        write_mode = std::bind(&BSwitcher::dummy_write_mode, this, std::placeholders::_1);  // 防段错误
+    if (!staticMode) {
+        write_mode = std::bind(&BSwitcher::dummy_write_mode, this, std::placeholders::_1);  // 防段错误 
         static bool lastscene = false;                                                      //记录scenemode是否改变
         sceneStrict = false;
 
@@ -205,7 +205,7 @@ int BSwitcher::load_config() {                                         //在此�
                         }
 
                         if (powercfg.contains("features") && powercfg["features"].is_object()) {
-                            sceneStrict = (powercfg["features"].value("strict", false)) && mainConfigTarget->config.scene_strict;  //都为true时才启用
+                            sceneStrict = mainConfigTarget->config.scene_strict;  //严格scene模式
                         }
 
                         if (powercfg.contains("name")) {  // 解析name
@@ -263,6 +263,10 @@ int BSwitcher::load_config() {                                         //在此�
             write_mode = std::bind(&BSwitcher::scene_write_mode, this, std::placeholders::_1);
         } else {
             write_mode = std::bind(&BSwitcher::unscene_write_mode, this, std::placeholders::_1);
+        }
+
+        if (!mainConfigTarget->config.enable_dynamic) {
+            write_mode = std::bind(&BSwitcher::dummy_write_mode, this, std::placeholders::_1);  //未启用动态切换时不实际操作
         }
 
         if (sceneStrict) {

@@ -100,6 +100,9 @@ add_custom_target(copy_module ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/module
         ${CMAKE_BINARY_DIR}/module
+    COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_SOURCE_DIR}/readme.md
+        ${CMAKE_BINARY_DIR}/readme.md
     COMMENT "Copying module directory to build directory"
 )
 

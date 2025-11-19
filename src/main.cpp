@@ -54,7 +54,17 @@ bool loadStaticData() {                      //尝试加载静态数据
     }
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+
+    std::string runningPath = "";
+    int opt;
+    while ((opt = getopt(argc, argv, "p:")) != -1) {      //-p接受运行环境
+        switch (opt) {
+        case 'p':
+            runningPath = optarg;
+            break;
+        }
+    }
 
     if (fork() > 0) {
         exit(0);
@@ -68,14 +78,18 @@ int main() {
 
     umask(0);
 
-    char exePath[PATH_MAX];
-    ssize_t count = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+    if (runningPath.empty()) {
+        char exePath[PATH_MAX];
+        ssize_t count = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
 
-    if (count != -1) {
-        exePath[count] = '\0';
-        char* dirPath = dirname(exePath);
+        if (count != -1) {
+            exePath[count] = '\0';
+            char* dirPath = dirname(exePath);
 
-        chdir(dirPath);
+            chdir(dirPath);
+        }
+    } else {
+        chdir(runningPath.c_str());
     }
 
     int dev_null_fd = open("/dev/null", O_RDWR);
