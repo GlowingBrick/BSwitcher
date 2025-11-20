@@ -141,8 +141,13 @@ void BSwitcher::init_thread() {
     }
 }
 
-int BSwitcher::load_config() {                                         //在此加载配置
+int BSwitcher::load_config() {  //在此加载配置
+    if (!mainConfigTarget->modify) {
+        return 1;
+    }
+
     std::lock_guard<std::mutex> mLock(mainConfigTarget->configMutex);  // 获取锁
+    mainConfigTarget->modify = false;
 
     if (mainConfigTarget->config.poll_interval <= 1) {  //间隔时间为1以下时
         sleepDuring = std::chrono::milliseconds(100);
@@ -165,7 +170,7 @@ int BSwitcher::load_config() {                                         //在此�
     init_thread();
 
     if (!staticMode) {
-        write_mode = std::bind(&BSwitcher::dummy_write_mode, this, std::placeholders::_1);  // 防段错误 
+        write_mode = std::bind(&BSwitcher::dummy_write_mode, this, std::placeholders::_1);  // 防段错误
         static bool lastscene = false;                                                      //记录scenemode是否改变
         sceneStrict = false;
 
@@ -357,11 +362,7 @@ void BSwitcher::main_loop() {
     LOGD("Ready, entering main loop.");
     while (1)  // 主循环
     {
-        if (unlikely(mainModify)) {  //检查配置文件是否修改
-            load_config();           //加载配置
-            mainModify = false;      //清除修改标记
-            lastMode = "";
-        }
+        load_config();  //加载配置
 
         std::this_thread::sleep_for(sleepDuring);              //等待
         fileWatcher->wait(timeset);                            // 阻塞等待cgroup变化
@@ -388,25 +389,23 @@ void BSwitcher::main_loop() {
                     mLock.unlock();
                     std::lock_guard<std::mutex> sLock(schedulerMutex);
 
-                    if (!schedulerConfig.apps.empty()) {  //为空时跳过
-                        currentApp = topAppDetector.getForegroundApp();
-                        LOGD("CurrentAPP: %s", currentApp.c_str());
+                    currentApp = topAppDetector.getForegroundApp();
+                    LOGD("CurrentAPP: %s", currentApp.c_str());
 
-                        if (!currentApp.empty()) {                        //未获取到时跳过
-                            for (const auto& app : schedulerConfig.apps)  // 匹配应用列表
-                            {                                             // 遍历app列表
-                                if (app.pkgName == currentApp) {
-                                    newMode = app.mode;
-                                    if (app.down_fps > 0) {
-                                        dfps = app.down_fps;
-                                    }
-                                    if (app.up_fps > 0) {
-                                        ufps = app.up_fps;
-                                    }
-                                    break;
+                    if (!currentApp.empty()) {                        //未获取到时跳过
+                        for (const auto& app : schedulerConfig.apps)  // 匹配应用列表
+                        {                                             // 遍历app列表
+                            if (app.pkgName == currentApp) {
+                                newMode = app.mode;
+                                if (app.down_fps > 0) {
+                                    dfps = app.down_fps;
                                 }
-                                std::this_thread::sleep_for(std::chrono::milliseconds(1));  // 避免负载集中
+                                if (app.up_fps > 0) {
+                                    ufps = app.up_fps;
+                                }
+                                break;
                             }
+                            std::this_thread::sleep_for(std::chrono::milliseconds(1));  // 避免负载集中
                         }
                     }
                 }

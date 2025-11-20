@@ -139,7 +139,7 @@ private:
         }
     }
 
-    int getFpsId(int key) {  //尝试选择一个最接近的fpsid.不保证map与vector
+    int getFpsId(int key) {  //尝试选择一个最接近的fpsid.不保证map与vector完全对应
         auto tfpsmap = fpsmap.load(std::memory_order_relaxed);
 
         auto exact_it = (*tfpsmap).find(key);
