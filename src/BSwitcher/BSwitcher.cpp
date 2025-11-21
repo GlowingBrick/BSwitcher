@@ -37,8 +37,12 @@ int BSwitcher::init_service() {
     }
 
     if (dynamicFpsTarget->allfpsmap.size() <= 1) {
-        mainConfigTarget->config.screen_resolution = dynamicFpsTarget->allfpsmap.begin()->first;  //唯一的分辨率
-    } else {                                                                                      //有不止一个分辨率
+        if (dynamicFpsTarget->allfpsmap.size() == 0) {
+            mainConfigTarget->config.dynamic_fps = false;
+        } else {
+            mainConfigTarget->config.screen_resolution = dynamicFpsTarget->allfpsmap.begin()->first;  //唯一的分辨率
+        }
+    } else {  //有不止一个分辨率
         nlohmann::json resolist = nlohmann::json::array();
         for (const auto& [key, value] : dynamicFpsTarget->allfpsmap) {
             resolist.push_back(nlohmann::json({{"value", key}, {"label", key}}));
@@ -48,18 +52,7 @@ int BSwitcher::init_service() {
         combined_config.insert(combined_config.end(), CONFIG_RESO.begin(), CONFIG_RESO.end());  //添加选项
 
         if (!dynamicFpsTarget->allfpsmap.count(mainConfigTarget->config.screen_resolution)) {  //当前分辨率不存在
-            auto max_it = dynamicFpsTarget->allfpsmap.begin();
-            for (auto it = dynamicFpsTarget->allfpsmap.begin(); it != dynamicFpsTarget->allfpsmap.end(); ++it) {
-                if (it->second.size() > max_it->second.size()) {  //默认配置为数量最多的项
-                    max_it = it;
-                } else if (it->second.size() == max_it->second.size()) {  //相同数量配置为分辨率大的项
-                    if (DynamicFpsTarget::countPixel(it->first) > DynamicFpsTarget::countPixel(max_it->first)) {
-                        max_it = it;
-                    }
-                }
-            }
-
-            mainConfigTarget->config.screen_resolution = max_it->first;  //装进配置
+            mainConfigTarget->config.screen_resolution = dynamicFpsTarget->findMax();          //装进配置
         }
     }
 
@@ -125,17 +118,20 @@ void BSwitcher::init_thread() {
 
     if (mainConfigTarget->config.dynamic_fps) {  //动态刷新率
         //传入配置
-        auto it = dynamicFpsTarget->allfpsmap.find(mainConfigTarget->config.screen_resolution);
-        if (it != dynamicFpsTarget->allfpsmap.end()) {
-            dynamicFpsTarget->fpsmap.store(&it->second, std::memory_order_relaxed);
+        if (dynamicFpsTarget->allfpsmap.size() != 0) {
+            auto it = dynamicFpsTarget->allfpsmap.find(mainConfigTarget->config.screen_resolution);
+            if (it != dynamicFpsTarget->allfpsmap.end()) {
+                dynamicFpsTarget->fpsmap.store(&it->second, std::memory_order_relaxed);
+            }
+
+            dynamicFpsTarget->using_backdoor.store(mainConfigTarget->config.fps_backdoor, std::memory_order_relaxed);
+            dynamicFpsTarget->backdoorid.store(mainConfigTarget->config.fps_backdoor_id, std::memory_order_relaxed);
+            dynamicFpsTarget->down_during_ms.store(mainConfigTarget->config.fps_idle_time, std::memory_order_relaxed);
+
+            //启动
+            dynamicFpsTarget->init();
         }
 
-        dynamicFpsTarget->using_backdoor.store(mainConfigTarget->config.fps_backdoor, std::memory_order_relaxed);
-        dynamicFpsTarget->backdoorid.store(mainConfigTarget->config.fps_backdoor_id, std::memory_order_relaxed);
-        dynamicFpsTarget->down_during_ms.store(mainConfigTarget->config.fps_idle_time, std::memory_order_relaxed);
-
-        //启动
-        dynamicFpsTarget->init();
     } else {
         dynamicFpsTarget->stop();
     }

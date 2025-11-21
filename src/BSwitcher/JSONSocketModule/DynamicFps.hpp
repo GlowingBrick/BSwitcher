@@ -18,16 +18,17 @@ private:
     std::vector<std::string> filePaths;
     std::thread worker_thread_;
     std::atomic<bool> running_;
-    std::atomic<int> currentfps = 0;
+    int currentfps = 0;
 
     std::atomic<std::chrono::steady_clock::time_point> _target_time;
     std::atomic<bool> _imrun{false};
 
     nlohmann::json fpslist;
+    mutable std::mutex fpsMutex;
 
 public:
     const std::unordered_map<std::string, std::map<int, int>> allfpsmap;  //带分辨率的列表
-    std::atomic<const std::map<int, int>*> fpsmap;                                         //当前列表
+    std::atomic<const std::map<int, int>*> fpsmap;                        //当前列表
     std::atomic<int> up_fps{120};
     std::atomic<int> down_fps{60};
     std::atomic<int> down_during_ms{2500};
@@ -64,7 +65,7 @@ public:
 
         fpslist = getAvailableRefreshRates();
 
-        fpsmap = &allfpsmap.begin()->second;    //随便指一个
+        fpsmap = &allfpsmap.begin()->second;  //随便指一个
     }
 
     void init() {
@@ -82,6 +83,20 @@ public:
                 worker_thread_.join();
             }
         }
+    }
+
+    std::string findMax() {  //找出最多帧率选择且最大分辨率
+        auto max_it = allfpsmap.begin();
+        for (auto it = allfpsmap.begin(); it != allfpsmap.end(); ++it) {
+            if (it->second.size() > max_it->second.size()) {  //默认配置为数量最多的项
+                max_it = it;
+            } else if (it->second.size() == max_it->second.size()) {  //相同数量配置为分辨率大的项
+                if (DynamicFpsTarget::countPixel(it->first) > DynamicFpsTarget::countPixel(max_it->first)) {
+                    max_it = it;
+                }
+            }
+        }
+        return max_it->first;
     }
 
 private:
@@ -119,7 +134,9 @@ private:
     }
 
     void change_fps(int fps) {
-        if (currentfps.exchange(fps, std::memory_order_relaxed) != fps) {
+        std::lock_guard<std::mutex> lock(fpsMutex);
+        if (currentfps != fps) {
+            currentfps = fps;
             LOGD("Frame rate changed to %d", fps);
             if (!using_backdoor.load(std::memory_order_relaxed)) {
                 execute("/system/bin/cmd", "settings", "put", "system", "peak_refresh_rate", std::to_string(fps).c_str());
@@ -148,7 +165,7 @@ private:
         }
 
         if ((*tfpsmap).empty()) {
-            return 120;
+            return 0;
         }
 
         auto it = (*tfpsmap).lower_bound(key);
@@ -294,7 +311,7 @@ public:
 
     */
 
-    static std::unordered_map<std::string, std::map<int, int>> getResolutionToDisplayModes() { //解析所有显示模式
+    static std::unordered_map<std::string, std::map<int, int>> getResolutionToDisplayModes() {  //解析所有显示模式
         std::unordered_map<std::string, std::map<int, int>> resolutionModes;
 
         std::unique_ptr<FILE, decltype(&pclose)> pipe(popen("dumpsys display | grep DisplayModeRecord", "r"), pclose);
@@ -375,7 +392,7 @@ public:
             }
 
             auto fpsPos = line.find("fps=");
-            if (fpsPos != std::string::npos) {              // 解析fps
+            if (fpsPos != std::string::npos) {  // 解析fps
                 auto fpsStart = fpsPos + 4;
                 auto fpsEnd = line.find_first_of(",}", fpsStart);
                 if (fpsEnd != std::string::npos) {
@@ -394,26 +411,25 @@ public:
         return resolutionModes;
     }
 
-    static std::pair<int,int> parseResolution(const std::string& resolution_str) {
+    static std::pair<int, int> parseResolution(const std::string& resolution_str) { //从hxw字符串解析出h和w
         size_t x_pos = resolution_str.find('x');
         if (x_pos == std::string::npos || x_pos == 0 || x_pos == resolution_str.length() - 1) {
-            return {0,0}; 
+            return {0, 0};
         }
 
         try {
             int width = std::stoi(resolution_str.substr(0, x_pos));
             int height = std::stoi(resolution_str.substr(x_pos + 1));
-            return {width , height} ; 
+            return {width, height};
         } catch (const std::exception&) {
-            return {0,0}; 
+            return {0, 0};
         }
     }
 
     static int countPixel(const std::string& resolution_str) {
-        auto t=parseResolution(resolution_str);
-        return t.first*t.second;
+        auto t = parseResolution(resolution_str);
+        return t.first * t.second;
     }
-
 };
 
 #endif

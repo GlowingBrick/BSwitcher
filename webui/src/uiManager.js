@@ -605,7 +605,7 @@ export class UIManager {
     // 显示模态框
     async showModal() {
         if (this.modal) {
-            this.modal.style.display = 'block';
+
             // 重置表单
             const appSearch = document.getElementById('appSearch');
             const appSelect = document.getElementById('appSelect');
@@ -644,7 +644,7 @@ export class UIManager {
                 if (downFpsLabel) downFpsLabel.style.display = 'none';
                 if (upFpsLabel) upFpsLabel.style.display = 'none';
             }
-
+            this.modal.style.display = 'block';
             // 显示所有应用
             this.populateAppSelect();
         }
