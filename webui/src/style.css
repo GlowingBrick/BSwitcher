@@ -1,4 +1,3 @@
-/* ===== CSS 变量定义 - 浅色主题 ===== */
 :root {
   /* 颜色系统 */
   --color-primary: #3498db;
@@ -24,7 +23,9 @@
   --color-gray-700: #495057;
   --color-gray-800: #343a40;
   --color-gray-900: #212529;
-  
+
+ 
+  --gradient-base: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%234013c1'/%3E%3Cstop offset='100%25' stop-color='%2366ccff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='url(%23g)'/%3E%3C/svg%3E");
   /* 语义化颜色 */
   --bg-primary: var(--color-white);
   --bg-secondary: var(--color-gray-50);
@@ -84,7 +85,6 @@ body {
 
 /* ===== 页眉样式 ===== */
 header {
-  display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 30px;
@@ -95,6 +95,7 @@ header {
 header h1 {
   color: var(--color-primary);
   font-size: 2.5rem;
+  align-items: center;
   margin: 0;
 }
 
@@ -103,53 +104,18 @@ header h1 {
   gap: 10px;
 }
 
-/* ===== 图标按钮样式 ===== */
-.btn-icon {
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  font-size: 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+.btn-head {
+    display: flex;
+    flex-wrap: nowrap; 
+    white-space: nowrap;
+    gap: 8px; 
 }
 
-.btn-icon:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.btn-icon:active {
-  transform: translateY(0);
-}
-
-.btn-blue {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
-  color: var(--color-white);
-}
-
-.btn-blue:hover {
-  background: linear-gradient(135deg, var(--color-primary-dark), var(--color-primary));
-}
-
-.btn-red {
-  background: linear-gradient(135deg, var(--color-danger), var(--color-danger-dark));
-  color: var(--color-white);
-}
-
-.btn-red:hover {
-  background: linear-gradient(135deg, var(--color-danger-dark), var(--color-danger));
-}
 
 /* ===== 区域卡片样式 ===== */
 .section {
   background: var(--card-bg);
-  border-radius: 8px;
+  border-radius: 20px;
   padding: 20px;
   margin-bottom: 20px;
   box-shadow: 0 2px 10px var(--shadow-color);
@@ -213,138 +179,143 @@ input[type="number"],
   font-size: 14px;
   background: var(--input-bg);
   color: var(--text-primary);
+  border-radius: 12px;
 }
 
 select:focus,
 input[type="text"]:focus,
-input[type="number"]:focus {
+input[type="number"]:focus,btn:focus {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
 }
 
-#appSelect {
+select:active,
+input[type="text"]:active,
+input[type="number"]:active,
+.btn:active {
+  outline: none;
+  -webkit-tap-highlight-color: transparent; 
+}
+
+input[type="text"],input[type="number"],select{
   width: 100%;
   background: var(--input-bg);
   color: var(--text-primary);
-}
-
-#appSelect option {
-  padding: 8px;
-  background: var(--input-bg);
-  color: var(--text-primary);
-}
-
-#appSelect option:hover {
-  background-color: var(--color-primary);
-  color: var(--color-white);
-}
-
-#appSelect option:disabled {
-  color: var(--color-gray-500);
-  background-color: var(--bg-tertiary);
-}
-
-.search-input {
-  width: 100%;
-  padding: 10px;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: 16px; 
+  padding: 12px 16px;
   font-size: 14px;
-  margin-bottom: 10px;
-  background: var(--input-bg);
-  color: var(--text-primary);
+  font-weight: 500;
+  transition: all 0.3s ease-in-out;
+  cursor: pointer;
+  appearance: none; 
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-position: right 16px center;
+  background-size: 16px;
+  padding-right: 44px;
 }
 
-.search-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
-}
 
-#modeSelect {
-  width: 100%;
-  background: var(--input-bg);
-  color: var(--text-primary);
-}
-
-#downFpsSelect {
-  width: 100%;
-  background: var(--input-bg);
-  color: var(--text-primary);
-}
-
-#upFpsSelect {
-  width: 100%;
-  background: var(--input-bg);
-  color: var(--text-primary);
-}
-
-#defaultMode {
-  width: 100%;
-  background: var(--input-bg);
-  color: var(--text-primary);
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 16px;
+  padding-right: 44px;
 }
 
 /* ===== 按钮样式 ===== */
 .btn {
   cursor: pointer;
-  transition: all 0.5s ease-in-out;
+  transition: all 0.3s ease-in-out;
   border: none;
   font-weight: 600;
   transform: scale(1);
   transform-origin: center;
+  background-size: 100% 100%;
+  background-position: center;
 }
 
+/* 主要按钮 */
 .btn-primary {
-  background-color: var(--color-primary);
+  background-color:var(--color-primary);
+  background-image: var(--gradient-base);
+  filter: hue-rotate(0deg); 
+  background-size: cover;
   color: var(--color-white);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--color-primary), transparent 70%);
 }
 
 .btn-primary:hover {
   background-color: var(--color-primary-dark);
+  background-image: var(--gradient-base);
+  filter: hue-rotate(0deg) brightness(0.8); 
+  background-size: cover;
+  box-shadow: 0 4px 8px color-mix(in srgb, var(--color-primary), transparent 60%);
+  transform: translateY(-1px);
 }
 
+/* 次要按钮 */
 .btn-secondary {
   background-color: var(--color-secondary);
   color: var(--color-white);
-}
-
-.btn-secondary-warning {
-  background-color: var(--color-warning);
-  color: var(--color-white);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--color-secondary), transparent 70%);
 }
 
 .btn-secondary:hover {
   background-color: var(--color-secondary-dark);
+  box-shadow: 0 4px 8px color-mix(in srgb, var(--color-secondary), transparent 60%);
+  transform: translateY(-1px);
 }
 
+/* 警告按钮 */
+.btn-secondary-warning {
+  background-color: var(--color-warning);
+  color: var(--color-white);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--color-warning), transparent 70%);
+}
+
+.btn-secondary-warning:hover {
+  background-color: var(--color-warning-dark);
+  box-shadow: 0 4px 8px color-mix(in srgb, var(--color-warning), transparent 60%);
+  transform: translateY(-1px);
+}
+
+/* 危险按钮 */
 .btn-danger {
-  background-color: var(--color-danger);
+  background-color:var(--color-danger);
   color: var(--color-white);
   padding: 5px 10px;
   font-size: 12px;
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--color-danger), transparent 70%);
 }
 
 .btn-danger:hover {
-  background-color: var(--color-danger-dark);
-}
+  background-color:var(--color-danger-dark);  
 
-.btn-secondary, .btn-danger {
-  transition: all 0.3s ease-in-out;
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--color-danger-dark), transparent 60%);
+  transform: translateY(-1px);
 }
 
 .btn-warning {
-  background-color: var(--color-warning);
+  background-color:  var(--color-warning);
   color: var(--color-white);
   width: 100%;
   padding: 8px 12px;
   font-size: 12px;
   white-space: nowrap;
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--color-warning), transparent 70%);
 }
 
 .btn-warning:hover {
   background-color: var(--color-warning-dark);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--color-warning-dark), transparent 60%);
+  transform: translateY(-1px);
 }
 
 .btn-small {
@@ -378,6 +349,43 @@ input[type="number"]:focus {
   content: " ✗";
 }
 
+/* 图标按钮 */
+.btn-icon {
+  width: 33px;
+  height: 33px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: transparent; 
+  box-shadow: none;
+}
+
+.btn-icon svg {
+  width: 24px;  
+  height: 24px;
+  transition: all 0.3s ease;
+  fill: currentColor; 
+}
+
+.btn-icon:hover {
+  transform: none; 
+  box-shadow: none; 
+}
+
+.btn-icon:hover svg {
+  transform: scale(1.2); 
+  filter: brightness(1.2); 
+}
+
+.btn-icon:active svg {
+  transform: scale(1.1);
+}
 /* ===== 规则列表样式 ===== */
 .rules-list {
   display: flex;
@@ -386,29 +394,46 @@ input[type="number"]:focus {
 }
 
 .rule-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   padding: 15px;
   background: var(--bg-secondary);
   border-radius: 6px;
   border-left: 4px solid var(--color-primary);
-  gap: 15px;
 }
 
-.rule-info {
-  flex: 1;
-  min-width: 0;
+.rule-header {
+  display: grid;
+  grid-template-columns: 1fr auto; 
+  align-items: start;
+  gap: 15px;
+  margin-bottom: 8px;
+  min-height: 24px; 
+}
+
+.rule-name-container {
+  min-width: 0; 
   overflow: hidden;
 }
 
 .rule-name {
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.2;
+  align-items: start;
+  height: 100%;
+}
+
+.rule-actions {
+  flex-shrink: 0;
+}
+
+.delete-rule {
+  padding: 6px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+  height: fit-content;
 }
 
 .rule-details {
@@ -417,20 +442,8 @@ input[type="number"]:focus {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.2;
 }
-
-.rule-actions {
-  flex-shrink: 0;
-  width: 80px;
-}
-
-.delete-rule {
-  width: 100%;
-  padding: 8px 12px;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
 /* ===== 模态框样式 ===== */
 .modal {
   display: none;
@@ -534,13 +547,8 @@ input[type="number"]:focus {
 .config-item input[type="text"],
 .config-item input[type="number"],
 .config-item select {
-  width: 100%;
   padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
   font-size: 14px;
-  background: var(--input-bg);
-  color: var(--text-primary);
 }
 
 .config-item input:focus,
@@ -633,19 +641,31 @@ input[type="number"]:focus {
 }
 
 .power-stat-item {
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+  min-width: 0;
+  gap: 10px;
 }
 
 .power-stat-value {
-  font-size: 1.5rem;
+  font-size: 1rem;
   font-weight: bold;
   color: var(--text-primary);
-  margin-bottom: 5px;
+  flex-shrink: 0; 
+  text-align: right;
+  min-width: 0; 
 }
 
 .power-stat-label {
   font-size: 0.9rem;
   color: var(--text-muted);
+  flex-shrink: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; 
 }
 
 /* ===== 功耗列表样式 ===== */
@@ -745,7 +765,6 @@ input[type="number"]:focus {
 /* ===== 响应式设计 ===== */
 @media (max-width: 768px) {
   header {
-    flex-direction: column;
     gap: 15px;
     text-align: center;
   }
@@ -797,7 +816,7 @@ input[type="number"]:focus {
 
 /* 日志容器样式 */
 .logs-container {
-    max-height: 600px; /* 增加高度 */
+    max-height: 600px; 
     overflow: auto;
     background: var(--bg-secondary);
     border-radius: 6px;
@@ -810,32 +829,30 @@ input[type="number"]:focus {
 
 .logs-content {
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 11px; /* 更小的字体 */
+    font-size: 11px;
     line-height: 1.3;
     color: var(--text-primary);
-    white-space: pre; /* 不换行 */
-    word-wrap: normal; /* 不换行 */
-    word-break: keep-all; /* 保持单词完整 */
+    white-space: pre; 
+    word-wrap: normal; 
+    word-break: keep-all; 
     margin: 0;
     flex: 1;
     min-height: 0;
     overflow: auto;
-    min-width: min-content; /* 确保内容不被压缩 */
+    min-width: min-content; 
 }
 
 #logsModal .modal-content {
-    max-width: 95%; /* 更宽的窗口 */
+    max-width: 95%; 
     width: 95%;
     margin: 2% auto; 
 }
 
-/* 水平滚动支持 */
 .logs-content {
-    overflow-x: auto; /* 水平滚动 */
-    overflow-y: auto; /* 垂直滚动 */
+    overflow-x: auto;
+    overflow-y: auto; 
 }
 
-/* 自定义滚动条 */
 .logs-content::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -894,14 +911,14 @@ input[type="number"]:focus {
     padding: 40px;
     color: var(--text-muted);
     font-style: italic;
-    white-space: normal; /* 加载信息可以换行 */
+    white-space: normal;
 }
 
 .logs-error {
     text-align: center;
     padding: 40px;
     color: var(--color-danger);
-    white-space: normal; /* 错误信息可以换行 */
+    white-space: normal;
 }
 
 /* 深色模式下的日志样式优化 */
@@ -935,6 +952,6 @@ input[type="number"]:focus {
     }
     
     .logs-content {
-        font-size: 10px; /* 移动端更小的字体 */
+        font-size: 10px;
     }
 }

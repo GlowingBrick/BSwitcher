@@ -97,6 +97,7 @@ set_target_properties(socket_send PROPERTIES
 
 # ===========================module=================================
 add_custom_target(copy_module ALL
+    COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/module
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/module
         ${CMAKE_BINARY_DIR}/module

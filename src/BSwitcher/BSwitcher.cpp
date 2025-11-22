@@ -366,6 +366,9 @@ void BSwitcher::main_loop() {
 
         {
             std::unique_lock<std::mutex> mLock(mainMutex);
+            if (!(mainConfig.dynamic_fps || mainConfig.power_monitoring || mainConfig.enable_dynamic)) {
+                continue;
+            }
             int ufps = mainConfig.up_fps > 0 ? mainConfig.up_fps : 120;
             int dfps = mainConfig.down_fps > 0 ? mainConfig.down_fps : 60;
 

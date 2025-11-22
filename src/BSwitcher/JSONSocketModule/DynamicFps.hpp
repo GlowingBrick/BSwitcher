@@ -102,7 +102,7 @@ public:
 private:
     void work() {
         fileWatcher->initialize();
-
+        int i = 0;
         while (true) {
 
             std::this_thread::sleep_for(std::chrono::milliseconds(300));
@@ -112,7 +112,7 @@ private:
                 return;
             }
 
-            change_fps(up_fps.load(std::memory_order_relaxed));
+            change_fps(up_fps.load(std::memory_order_relaxed), (++i) % 10 == 0);
             waitfor_downfps(down_during_ms.load(std::memory_order_relaxed));
         }
     }
@@ -133,9 +133,9 @@ private:
         }
     }
 
-    void change_fps(int fps) {
+    void change_fps(int fps, bool force = false) {
         std::lock_guard<std::mutex> lock(fpsMutex);
-        if (currentfps != fps) {
+        if (currentfps != fps || force) {
             currentfps = fps;
             LOGD("Frame rate changed to %d", fps);
             if (!using_backdoor.load(std::memory_order_relaxed)) {
@@ -411,7 +411,7 @@ public:
         return resolutionModes;
     }
 
-    static std::pair<int, int> parseResolution(const std::string& resolution_str) { //从hxw字符串解析出h和w
+    static std::pair<int, int> parseResolution(const std::string& resolution_str) {  //从hxw字符串解析出h和w
         size_t x_pos = resolution_str.find('x');
         if (x_pos == std::string::npos || x_pos == 0 || x_pos == resolution_str.length() - 1) {
             return {0, 0};

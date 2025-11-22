@@ -6,10 +6,10 @@ import { SocketClient } from './socketClient.js';
 export class UIManager {
     constructor(configManager, appLoader) {
         this.configManager = configManager;
-        this.socketClient =new SocketClient();
+        this.socketClient = new SocketClient();
         this.appLoader = appLoader;
         this.infoManager = new InfoManager();
-        
+
         this.modal = document.getElementById('addRuleModal');
         this.configModal = document.getElementById('configModal');
         this.powerModal = document.getElementById('powerDataModal');
@@ -20,7 +20,7 @@ export class UIManager {
         this.rulesList = null;
         this.pendingDeleteAppPackage = null;
         this.deleteTimeout = null;
-        
+
         this.configFields = [];
         this.configCategories = {};
 
@@ -47,12 +47,12 @@ export class UIManager {
                 mode: 'read'
             };
             const fpsList = await this.socketClient.communicate(request);
-            
+
             this.availableFps = [-1, ...fpsList.map(fps => Number(fps))];
             console.log('可用FPS列表:', this.availableFps);
         } catch (error) {
             console.error('加载FPS列表失败:', error);
-            this.availableFps = [-1, 30, 60, 90, 120]; 
+            this.availableFps = [-1, 30, 60, 90, 120];
         }
     }
 
@@ -81,7 +81,7 @@ export class UIManager {
     renderSystemInfo() {
         const systemInfo = this.infoManager.getSystemInfo();
         const systemInfoElement = document.getElementById('systemInfo');
-        
+
         if (systemInfoElement && systemInfo) {
             systemInfoElement.innerHTML = `
                 <div class="app-name">${systemInfo.name || 'BSwitcher'}</div>
@@ -208,16 +208,16 @@ export class UIManager {
         try {
             this.logsModal.style.display = 'block';
             this.showLogsLoading();
-            
+
             // 加载日志
             const logs = await this.loadLogs();
             this.renderLogs(logs);
-            
+
             // 确保滚动到底部
             setTimeout(() => {
                 this.scrollLogsToBottom();
             }, 100);
-            
+
         } catch (error) {
             this.showLogsError('加载日志失败: ' + error.message);
         }
@@ -233,12 +233,12 @@ export class UIManager {
     // 加载日志
     async loadLogs() {
         const { exec } = await import('./ksu.js');
-        
+
         // 更新日志命令
         const command = `logcat -v time -d -s "BSwitcher" | sed -E 's/^[0-9]*-[0-9]* //; s/\\.[0-9]*//; s/\\/[^\\(]*\\([^)]*\\):/:/'`;
-        
+
         const result = await exec(command);
-        
+
         if (result.errno === 0) {
             return result.stdout || '暂无日志';
         } else {
@@ -274,7 +274,7 @@ export class UIManager {
 
         // 直接显示原始日志内容
         logsContent.textContent = logs;
-        
+
         // 滚动到底部
         this.scrollLogsToBottom();
     }
@@ -303,11 +303,11 @@ export class UIManager {
 
         // 第一次点击：进入确认状态
         this.pendingDeleteAppPackage = appPackage;
-        
+
         // 保存原始文本和样式
         const originalText = button.textContent;
         const originalClass = button.className;
-        
+
         // 更新按钮状态
         button.textContent = '确认删除？';
         button.className = 'btn btn-warning delete-rule';
@@ -367,11 +367,11 @@ export class UIManager {
         try {
             this.powerModal.style.display = 'block';
             this.showPowerLoading();
-            
+
             // 加载功耗数据
             const powerData = await this.loadPowerData();
             this.renderPowerData(powerData);
-            
+
         } catch (error) {
             this.showPowerError('加载功耗数据失败: ' + error.message);
         }
@@ -386,7 +386,7 @@ export class UIManager {
 
     // 加载功耗数据
     async loadPowerData() {
-        
+
         const request = {
             target: 'powerdata',
             mode: 'read'
@@ -402,11 +402,11 @@ export class UIManager {
     showPowerLoading() {
         const powerList = document.getElementById('powerList');
         const powerSummary = document.getElementById('powerSummary');
-        
+
         if (powerList) {
             powerList.innerHTML = '<div class="power-loading">正在加载功耗数据...</div>';
         }
-        
+
         if (powerSummary) {
             powerSummary.innerHTML = '<div class="power-loading">正在计算统计信息...</div>';
         }
@@ -416,11 +416,11 @@ export class UIManager {
     showPowerError(message) {
         const powerList = document.getElementById('powerList');
         const powerSummary = document.getElementById('powerSummary');
-        
+
         if (powerList) {
             powerList.innerHTML = `<div class="power-error">${message}</div>`;
         }
-        
+
         if (powerSummary) {
             powerSummary.innerHTML = `<div class="power-error">${message}</div>`;
         }
@@ -435,10 +435,10 @@ export class UIManager {
 
         // 处理数据：计算功率、转换应用名称、排序
         const processedData = this.processPowerData(powerData);
-        
+
         // 渲染总体统计
         this.renderPowerSummary(processedData);
-        
+
         // 渲染应用列表
         this.renderPowerList(processedData);
     }
@@ -447,13 +447,13 @@ export class UIManager {
     processPowerData(powerData) {
         // 先过滤掉 _other_ 条目，用于排名显示
         const filteredData = powerData.filter(item => item.name !== '_other_');
-        
+
         return filteredData
             .map(item => {
                 const powerJoules = parseFloat(item.power_joules) || 0;
                 const timeSec = parseFloat(item.time_sec) || 0;
                 const powerWatt = timeSec > 0 ? powerJoules / timeSec : 0;
-                
+
                 return {
                     packageName: item.name,
                     appName: this.appLoader.getAppName(item.name),
@@ -488,16 +488,16 @@ export class UIManager {
         powerSummary.innerHTML = `
             <div class="power-summary-stats">
                 <div class="power-stat-item">
-                    <div class="power-stat-value">${formatNumber(totalEnergy)}</div>
                     <div class="power-stat-label">能耗 (焦耳)</div>
+                    <div class="power-stat-value">${formatNumber(totalEnergy)}</div>
                 </div>
                 <div class="power-stat-item">
-                    <div class="power-stat-value">${formatTime(totalTime)}</div>
                     <div class="power-stat-label">使用时间</div>
+                    <div class="power-stat-value">${formatTime(totalTime)}</div>
                 </div>
                 <div class="power-stat-item">
-                    <div class="power-stat-value">${formatNumber(avgPower)}</div>
                     <div class="power-stat-label">平均功率 (瓦特)</div>
+                    <div class="power-stat-value">${formatNumber(avgPower)}</div>
                 </div>
             </div>
         `;
@@ -533,7 +533,7 @@ export class UIManager {
     formatTimeShort(seconds) {
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
-        
+
         if (hours > 0) {
             return `${hours}h${minutes}m`;
         } else {
@@ -618,7 +618,7 @@ export class UIManager {
             if (appSearch) appSearch.value = '';
             if (appSelect) appSelect.value = '';
             if (modeSelect) modeSelect.value = this.configManager.getConfig().defaultMode;
-            
+
             // 设置整数值，而不是字符串
             if (downFpsSelect) downFpsSelect.value = -1;
             if (upFpsSelect) upFpsSelect.value = -1;
@@ -630,14 +630,14 @@ export class UIManager {
                 };
                 const result = await this.socketClient.communicate(request);
                 const isDynamicFpsEnabled = result.dynamic_fps || false;
-                
+
                 const shouldShowFpsControls = isDynamicFpsEnabled;  //在未启用动态fps时不显示选择框
-                
+
                 if (downFpsSelect) downFpsSelect.style.display = shouldShowFpsControls ? 'block' : 'none';
                 if (upFpsSelect) upFpsSelect.style.display = shouldShowFpsControls ? 'block' : 'none';
                 if (downFpsLabel) downFpsLabel.style.display = shouldShowFpsControls ? 'block' : 'none';
                 if (upFpsLabel) upFpsLabel.style.display = shouldShowFpsControls ? 'block' : 'none';
-                
+
             } catch (error) {
                 if (downFpsSelect) downFpsSelect.style.display = 'none';
                 if (upFpsSelect) upFpsSelect.style.display = 'none';
@@ -772,7 +772,7 @@ export class UIManager {
         // 设置默认模式当前值
         const config = this.configManager.getConfig();
         defaultModeSelect.value = config.defaultMode;
-        
+
         // 设置默认FPS值
         downFpsSelect.value = -1;
         upFpsSelect.value = -1;
@@ -791,9 +791,9 @@ export class UIManager {
     renderRulesList() {
         const rulesList = document.getElementById('rulesList');
         if (!rulesList) return;
-        
+
         const config = this.configManager.getConfig();
-        
+
         if (config.rules.length === 0) {
             rulesList.innerHTML = '<div class="empty-state">暂无规则，点击"添加规则"开始配置</div>';
             return;
@@ -802,7 +802,7 @@ export class UIManager {
         rulesList.innerHTML = config.rules.map(rule => {
             const appName = this.appLoader.getAppName(rule.appPackage);
             const modeName = rule.mode;
-            
+
             // 格式化FPS显示
             const formatFps = (fps) => fps === -1 ? '默认' : `${fps}`;
             const downFpsText = rule.down_fps !== undefined ? formatFps(rule.down_fps) : '默认';
@@ -814,22 +814,24 @@ export class UIManager {
             } else {
                 detailsContent = `模式: ${modeName} | FPS: ${downFpsText} - ${upFpsText}`;
             }
-            
+
             return `
-                <div class="rule-item">
-                    <div class="rule-info">
+            <div class="rule-item">
+                <div class="rule-header">
+                    <div class="rule-name-container">
                         <div class="rule-name" title="${appName}">${appName}</div>
-                        <div class="rule-details" title="${detailsContent}">
-                            ${detailsContent}
-                        </div>
                     </div>
                     <div class="rule-actions">
                         <button class="btn btn-danger delete-rule" data-app-package="${rule.appPackage}">删除</button>
                     </div>
                 </div>
+                <div class="rule-details" title="${detailsContent}">
+                    ${detailsContent}
+                </div>
+            </div>
             `;
         }).join('');
-        
+
         // 重置删除状态
         this.pendingDeleteAppPackage = null;
         if (this.deleteTimeout) {
@@ -849,7 +851,7 @@ export class UIManager {
 
         const appPackage = appSelect.value;
         const mode = modeSelect.value;
-        
+
         // 确保FPS值为整数类型
         const downFps = downFpsSelect.value === '' ? -1 : parseInt(downFpsSelect.value);
         const upFps = upFpsSelect.value === '' ? -1 : parseInt(upFpsSelect.value);
@@ -910,11 +912,11 @@ export class UIManager {
         if (!configForm) return;
 
         const config = this.infoManager.getConfig();
-        
+
         // 按分类渲染
         configForm.innerHTML = Object.entries(this.configCategories).map(([category, fields]) => {
             const categoryFields = fields.map(field => this.renderConfigField(field, config)).join('');
-            
+
             return `
                 <div class="config-group">
                     <h4>${category}</h4>
@@ -933,9 +935,9 @@ export class UIManager {
         const value = config[field.key] !== undefined ? config[field.key] : '';
         const isDisabled = this.isFieldDisabled(field, config);
         const options = this.getFieldOptions(field, config);
-        
+
         let fieldHtml = '';
-        
+
         switch (field.type) {
             case 'number':
                 fieldHtml = `
@@ -947,7 +949,7 @@ export class UIManager {
                         ${isDisabled ? 'disabled' : ''}>
                 `;
                 break;
-                
+
             case 'checkbox':
                 fieldHtml = `
                     <input type="checkbox" 
@@ -956,9 +958,9 @@ export class UIManager {
                         ${isDisabled ? 'disabled' : ''}>
                 `;
                 break;
-                
+
             case 'select':
-                const optionHtml = options.map(opt => 
+                const optionHtml = options.map(opt =>
                     `<option value="${opt.value}" ${value === opt.value ? 'selected' : ''}>${opt.label}</option>`
                 ).join('');
                 fieldHtml = `
@@ -967,7 +969,7 @@ export class UIManager {
                     </select>
                 `;
                 break;
-                
+
             case 'button':
                 fieldHtml = `
                     <button type="button" 
@@ -978,7 +980,7 @@ export class UIManager {
                     </button>
                 `;
                 break;
-                
+
             default: // text
                 fieldHtml = `
                     <input type="text" 
@@ -987,7 +989,7 @@ export class UIManager {
                         ${isDisabled ? 'disabled' : ''}>
                 `;
         }
-        
+
         return `
             <div class="config-item ${isDisabled ? 'disabled' : ''}">
                 <label>${field.type === 'button' ? '' : field.label}</label>
@@ -1035,7 +1037,7 @@ export class UIManager {
     // 检查字段是否应该禁用
     isFieldDisabled(field, currentConfig) {
         if (!field.dependsOn) return false;
-        
+
         const { field: dependentField, condition } = field.dependsOn;
 
         if (currentConfig[dependentField] === undefined) {  // 忽略不存在的规则
@@ -1043,7 +1045,7 @@ export class UIManager {
         }
 
         const dependentValue = currentConfig[dependentField];
-        
+
         // 如果依赖字段的值不等于条件值，则禁用此字段
         return dependentValue !== condition;
     }
@@ -1081,15 +1083,15 @@ export class UIManager {
     // 更新依赖字段的状态
     updateDependentFields() {
         const config = this.getCurrentConfigFormData();
-        
+
         this.configFields.forEach(field => {
             if (field.dependsOn) {
                 const input = document.querySelector(`[name="${field.key}"]`);
                 const container = input?.closest('.config-item');
-                
+
                 if (input && container) {
                     const isDisabled = this.isFieldDisabled(field, config);
-                    
+
                     input.disabled = isDisabled;
                     if (isDisabled) {
                         container.classList.add('disabled');
@@ -1105,16 +1107,16 @@ export class UIManager {
     async handleConfigButtonClick(field, event) {
         const button = event.target;
         const key = field.key;
-        
+
         // 检查是否需要确认
         const requireConfirmation = field.require_confirmation !== false; // 默认为true
-        
+
         // 如果按钮已经在确认状态，直接执行
         if (button.classList.contains('confirming')) {
             await this.executeButtonAction(key, button);
             return;
         }
-        
+
         // 如果需要确认
         if (requireConfirmation) {
             this.startConfirmationMode(button, field);
@@ -1129,12 +1131,12 @@ export class UIManager {
         // 保存原始状态
         button._originalText = button.textContent;
         button._originalClass = button.className;
-        
+
         // 切换到确认状态
         button.classList.remove('btn-secondary');
         button.classList.add('btn-secondary-warning', 'confirming');
         button.textContent = '确认？';
-        
+
         // 设置超时恢复
         button._confirmationTimeout = setTimeout(() => {
             this.cancelConfirmation(button);
@@ -1150,7 +1152,7 @@ export class UIManager {
             button.textContent = button._originalText;
         }
         button.classList.remove('confirming');
-        
+
         if (button._confirmationTimeout) {
             clearTimeout(button._confirmationTimeout);
             button._confirmationTimeout = null;
@@ -1160,14 +1162,14 @@ export class UIManager {
     // 执行按钮动作
     async executeButtonAction(key, button) {
         this.cancelConfirmation(button);    //恢复状态
-        
+
         try {
             const request = {
                 target: 'command',
                 mode: 'write',
                 data: [key]
             };
-            
+
             const result = await this.socketClient.communicate(request);
             if (result?.message && result.message.trim() !== '') {
                 this.showToast(result.message);
@@ -1183,7 +1185,7 @@ export class UIManager {
         // 排除按钮类型的输入元素
         const inputs = form.querySelectorAll('input:not([type="button"]), select');
         const config = {};
-        
+
         inputs.forEach(input => {
             if (input.type === 'checkbox') {
                 config[input.name] = input.checked;
@@ -1193,7 +1195,7 @@ export class UIManager {
                 config[input.name] = input.value;
             }
         });
-        
+
         return config;
     }
 
