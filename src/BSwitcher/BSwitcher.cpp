@@ -278,6 +278,19 @@ int BSwitcher::load_config() {  //在此加载配置
     return 0;
 }
 
+bool BSwitcher::ScreenBrightness() {
+    static int screen_fd_ = []() {
+        int fd = open("/sys/class/backlight/panel0-backlight/brightness", O_RDONLY | O_CLOEXEC);
+        return (fd >= 0) ? fd : -1;
+    }();
+    if (screen_fd_) {
+        char Brightness;
+        pread(screen_fd_, &Brightness, 1, 0);
+        return (Brightness != '0');
+    }
+    return true;
+}
+
 bool BSwitcher::ScreenState() {
     static int screen_fd_ = []() {
         int fd = open("/dev/cpuset/restricted/cgroup.procs", O_RDONLY | O_CLOEXEC);
@@ -298,9 +311,9 @@ bool BSwitcher::ScreenState() {
             }
         }
     }
-
-    powerMonitorTarget->setScreenStatus(true);
-    return true;  //少于5条或不可用
+    bool tstat = ScreenBrightness() && true;
+    powerMonitorTarget->setScreenStatus(tstat);
+    return tstat;  //少于5条或不可用
 }
 
 int BSwitcher::getBatteryLevel() {  //读取电量信息

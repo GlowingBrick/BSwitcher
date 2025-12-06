@@ -66,6 +66,8 @@ private:
 
     int load_config();  //在此加载配置
 
+    bool ScreenBrightness();
+
     bool ScreenState();
 
     int getBatteryLevel();
