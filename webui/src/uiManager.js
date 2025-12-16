@@ -700,14 +700,13 @@ export class UIManager {
             const option = document.createElement('option');
             option.value = app.packageName;
 
-            // 简化显示文本
+            // 简化显示文本 - 显示已配置状态但不禁用
             const displayText = hasRule
                 ? `${app.name} - 已配置`
                 : app.name;
 
             option.textContent = displayText;
-            option.disabled = hasRule;
-
+            // 不再禁用已有配置的应用
             appSelect.appendChild(option);
 
             if (!hasRule) {
@@ -715,17 +714,16 @@ export class UIManager {
             }
         });
 
-        // 更新计数显示
-        const totalCount = availableApps.length;
-        const disabledCount = totalCount - enabledCount;
-        let countText = `共 ${totalCount} 个应用`;
+        // 绑定应用选择变化事件
+        appSelect.addEventListener('change', (e) => {
+            this.onAppSelectChange(e.target.value);
+        });
+
+        // 更新计数显示 - 不再显示可用数量，因为所有应用都可用
+        let countText = `共 ${availableApps.length} 个应用`;
 
         if (searchTerm) {
-            countText = `搜索到 ${totalCount} 个应用`;
-        }
-
-        if (disabledCount > 0) {
-            countText += ` (${enabledCount} 个可用)`;
+            countText = `搜索到 ${availableApps.length} 个应用`;
         }
 
         appCount.textContent = countText;
@@ -734,6 +732,48 @@ export class UIManager {
     // 搜索应用
     searchApps(searchTerm) {
         this.populateAppSelect(searchTerm);
+    }
+
+    // 应用选择变化事件处理
+    async onAppSelectChange(selectedPackage) {
+        if (!selectedPackage) {
+            return; // 没有选择任何应用
+        }
+
+        // 检查是否已存在该应用的规则
+        if (this.configManager.hasRuleForApp(selectedPackage)) {
+            await this.loadExistingRule(selectedPackage);
+        } else {
+            this.resetFormToDefaults();
+        }
+    }
+
+    // 加载现有规则配置
+    async loadExistingRule(appPackage) {
+        const config = this.configManager.getConfig();
+        const existingRule = config.rules.find(rule => rule.appPackage === appPackage);
+        
+        if (existingRule) {
+            const modeSelect = document.getElementById('modeSelect');
+            const downFpsSelect = document.getElementById('downFpsSelect');
+            const upFpsSelect = document.getElementById('upFpsSelect');
+
+            if (modeSelect) modeSelect.value = existingRule.mode || config.defaultMode;
+            if (downFpsSelect) downFpsSelect.value = existingRule.down_fps !== undefined ? existingRule.down_fps : -1;
+            if (upFpsSelect) upFpsSelect.value = existingRule.up_fps !== undefined ? existingRule.up_fps : -1;
+        }
+    }
+
+    // 重置表单为默认值
+    resetFormToDefaults() {
+        const modeSelect = document.getElementById('modeSelect');
+        const downFpsSelect = document.getElementById('downFpsSelect');
+        const upFpsSelect = document.getElementById('upFpsSelect');
+        const config = this.configManager.getConfig();
+
+        if (modeSelect) modeSelect.value = config.defaultMode;
+        if (downFpsSelect) downFpsSelect.value = -1;
+        if (upFpsSelect) upFpsSelect.value = -1;
     }
 
     // 填充模式选择框
@@ -861,10 +901,9 @@ export class UIManager {
             return;
         }
 
-        // 检查是否已存在该应用的规则
+        // 检查是否已存在该应用的规则，存在则先删除再添加（覆盖）
         if (this.configManager.hasRuleForApp(appPackage)) {
-            this.showToast('该应用已存在规则配置');
-            return;
+            await this.configManager.removeRule(appPackage);
         }
 
         try {
