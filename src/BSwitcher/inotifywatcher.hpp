@@ -361,6 +361,10 @@ private:
         char buffer[buffer_size];
         struct epoll_event events[MAX_EVENTS];
 
+        sigset_t mask;
+        sigfillset(&mask);
+        pthread_sigmask(SIG_SETMASK, &mask, nullptr);
+
         event_pending_.store(false,std::memory_order_relaxed);
 
         while (running_.load()) {
