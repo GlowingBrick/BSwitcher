@@ -9,6 +9,7 @@
 #include <cstring>
 #include <ctime>
 #include <fcntl.h>
+#include <fstream>
 #include <mutex>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -47,6 +48,11 @@ private:
 
     std::atomic<bool> screen_status{true};
 
+    // 日志记录
+    int loop_counter_ = 0;
+    const int LOG_INTERVAL = 300;
+    const std::string LOG_FILE = "./powerlog.json";
+
     // 初始化传感器
     bool init_power_sensors() {
         current_fd_ = open("/sys/class/power_supply/battery/current_now", O_RDONLY | O_CLOEXEC);
@@ -74,6 +80,68 @@ private:
                                   static_cast<double>(voltage_uv) *
                                   std::pow(10.0, -unit_.load(std::memory_order_relaxed))) *  //转换到W
                ((*dualBatteryPtr_) ? 2.0 : 1.0);                                             //双电芯
+    }
+
+    // 加载记录
+    void load_log_file() {
+        std::ifstream file(LOG_FILE);
+        if (!file.is_open()) {
+            LOGD("Power log file not found, will create new one");
+            return;
+        }
+
+        try {
+            nlohmann::json log_data = nlohmann::json::parse(file);
+
+            if (log_data.is_array()) {
+                std::lock_guard<std::mutex> lock(data_mutex_);
+                for (const auto& entry : log_data) {
+                    if (entry.contains("name") && entry.contains("time_sec") && entry.contains("power_joules")) {
+                        std::string name = entry["name"].get<std::string>();
+                        AppPower stats;
+                        stats.time_sec = entry["time_sec"].get<float>();
+                        stats.power_joules = entry["power_joules"].get<float>();
+                        app_power_map_[name] = stats;
+                    }
+                }
+                LOGD("Loaded power log from %s", LOG_FILE.c_str());
+            }
+        } catch (const std::exception& e) {
+            LOGW("Failed to parse power log file: %s", e.what());
+        }
+    }
+
+    // 保存日志
+    void save_log_file() {
+        nlohmann::json log_array = nlohmann::json::array();
+
+        for (const auto& [name, stats] : app_power_map_) {
+            nlohmann::json entry;
+            entry["name"] = name;
+            entry["time_sec"] = stats.time_sec;
+            entry["power_joules"] = stats.power_joules;
+            log_array.push_back(entry);
+        }
+
+        try {
+            std::ofstream file(LOG_FILE, std::ios::trunc);
+            if (file.is_open()) {
+                file << log_array.dump(4);  // 使用4空格缩进，便于阅读
+                LOGD("Saved power log to %s", LOG_FILE.c_str());
+            } else {
+                LOGW("Failed to open power log file for writing");
+            }
+        } catch (const std::exception& e) {
+            LOGW("Failed to save power log: %s", e.what());
+        }
+    }
+
+    // 检查-记录
+    void check_and_log() {
+        if (++loop_counter_ >= LOG_INTERVAL) {
+            loop_counter_ = 0;
+            save_log_file();
+        }
     }
 
     // 工作线程
@@ -165,8 +233,14 @@ private:
                 AppPower& stats = app_power_map_[app_name];
                 stats.time_sec += delta_t;
                 stats.power_joules += (power_w * delta_t);
+
+                // 检查是否需要记录日志
+                check_and_log();
             }
         }
+
+        // 退出前保存日志
+        save_log_file();
 
         if (current_fd_ >= 0) {
             close(current_fd_);
@@ -284,10 +358,14 @@ private:
 
 public:
     PowerMonitorTarget(std::string* current_app_ptr, bool* dualBatteryRef)
-        : dualBatteryPtr_(dualBatteryRef), current_app_ptr_(current_app_ptr) {}
+        : dualBatteryPtr_(dualBatteryRef), current_app_ptr_(current_app_ptr) {
+        load_log_file();
+    }
 
     ~PowerMonitorTarget() {
         stop();
+        // 析构时保存日志
+        save_log_file();
         if (current_fd_ >= 0) {
             close(current_fd_);
             current_fd_ = -1;

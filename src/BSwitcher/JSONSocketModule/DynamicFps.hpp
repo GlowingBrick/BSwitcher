@@ -112,7 +112,7 @@ private:
                 return;
             }
 
-            change_fps(up_fps.load(std::memory_order_relaxed), (++i) % 10 == 0);
+            change_fps(up_fps.load(std::memory_order_relaxed), (++i) % 15 == 0);
             waitfor_downfps(down_during_ms.load(std::memory_order_relaxed));
         }
     }
@@ -197,7 +197,7 @@ private:
             waitpid(pid, nullptr, WNOHANG);
         }
     }
-
+    
 public:
     static std::vector<int> getAvailableRefreshRates() {  //获取所有可用的刷新率
         std::set<int> rates;

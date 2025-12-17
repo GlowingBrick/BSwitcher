@@ -17,6 +17,12 @@ migrate_bswitcher_config() {
         ui_print "尝试迁移静态数据"
         cp -f "/data/adb/modules/BSwitcher/static_data.json" "$MODPATH/"
     fi
+
+    # 检查并复制 powerlog.json
+    if [ -f "/data/adb/modules/BSwitcher/powerlog.json" ]; then
+        ui_print "尝试迁移功耗记录"
+        cp -f "/data/adb/modules/BSwitcher/powerlog.json" "$MODPATH/"
+    fi
 }
 
 if /system/bin/nc --help 2>&1 | grep -q -e "-U"; then
