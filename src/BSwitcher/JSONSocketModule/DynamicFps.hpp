@@ -17,7 +17,7 @@ private:
     std::shared_ptr<FileWatcher> fileWatcher;
     std::vector<std::string> filePaths;
     std::thread worker_thread_;
-    std::atomic<bool> running_;
+    std::atomic<bool> running_{false};
     int currentfps = 0;
 
     std::atomic<std::chrono::steady_clock::time_point> _target_time;
