@@ -127,6 +127,7 @@ void BSwitcher::init_thread() {
             dynamicFpsTarget->using_backdoor.store(mainConfigTarget->config.fps_backdoor, std::memory_order_relaxed);
             dynamicFpsTarget->backdoorid.store(mainConfigTarget->config.fps_backdoor_id, std::memory_order_relaxed);
             dynamicFpsTarget->down_during_ms.store(mainConfigTarget->config.fps_idle_time, std::memory_order_relaxed);
+            dynamicFpsTarget->lowbri.store(mainConfigTarget->config.lowbri_for_fps, std::memory_order_relaxed);
 
             //启动
             dynamicFpsTarget->init();
@@ -284,9 +285,36 @@ bool BSwitcher::ScreenBrightness() {
         return (fd >= 0) ? fd : -1;
     }();
     if (screen_fd_) {
-        char Brightness;
-        pread(screen_fd_, &Brightness, 1, 0);
-        return (Brightness != '0');
+        if (dynamicFpsTarget->lowbri.load(std::memory_order_relaxed) > 0) {
+            char buf[16];  //想不出什么逆天系统能16装不下
+            ssize_t bytes_read = pread(screen_fd_, buf, sizeof(buf) - 1, 0);
+
+            if (bytes_read > 0) {
+                buf[bytes_read] = '\0';
+
+                for (ssize_t i = bytes_read - 1; i >= 0; i--) {
+                    if (buf[i] == '\n' || buf[i] == '\r' || buf[i] == ' ') {
+                        buf[i] = '\0';
+                    } else {
+                        break;
+                    }
+                }
+
+                char* endptr;
+                int brightness = static_cast<int>(strtol(buf, &endptr, 10));
+
+                if (endptr != buf) {
+                    dynamicFpsTarget->currentbri.store(brightness, std::memory_order_relaxed);
+                    return (brightness > 0);
+                } else {
+                    dynamicFpsTarget->currentbri.store(255, std::memory_order_relaxed);
+                }
+            }
+        } else {
+            char Brightness;
+            pread(screen_fd_, &Brightness, 1, 0);
+            return (Brightness != '0');
+        }
     }
     return true;
 }

@@ -96,6 +96,13 @@ const nlohmann::json CONFIG_SCHEMA = {                             //定义前�
      {"category", "动态刷新率"},
     {"dependsOn", {{"field", "dynamic_fps"}, {"condition", true}}}},
 
+    {{"key", "lowbri_for_fps"},
+     {"type", "number"},
+     {"label", "低亮度阈值"},
+     {"description", "低于此亮度时锁定60fps"},
+     {"category", "动态刷新率"},
+    {"dependsOn", {{"field", "dynamic_fps"}, {"condition", true}}}},
+
     {{"key", "fps_backdoor"},
      {"type", "checkbox"},
      {"label", "使用Backdoor"},

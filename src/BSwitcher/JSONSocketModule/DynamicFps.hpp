@@ -31,6 +31,9 @@ public:
     std::atomic<const std::map<int, int>*> fpsmap;                        //当前列表
     std::atomic<int> up_fps{120};
     std::atomic<int> down_fps{60};
+    std::atomic<int> lowbri{-10};
+    std::atomic<int> currentbri{1000};
+
     std::atomic<int> down_during_ms{2500};
 
     std::atomic<int> backdoorid{1035};
@@ -111,8 +114,11 @@ private:
             if (!running_.load(std::memory_order_relaxed)) {
                 return;
             }
-
-            change_fps(up_fps.load(std::memory_order_relaxed), (++i) % 15 == 0);
+            if (lowbri.load(std::memory_order_relaxed) <= currentbri.load(std::memory_order_relaxed)) {
+                change_fps(up_fps.load(std::memory_order_relaxed), (++i) % 15 == 0);
+            } else {
+                change_fps(60, (++i) % 15 == 0);  //低亮度锁60
+            }
             waitfor_downfps(down_during_ms.load(std::memory_order_relaxed));
         }
     }
@@ -197,7 +203,7 @@ private:
             waitpid(pid, nullptr, WNOHANG);
         }
     }
-    
+
 public:
     static std::vector<int> getAvailableRefreshRates() {  //获取所有可用的刷新率
         std::set<int> rates;

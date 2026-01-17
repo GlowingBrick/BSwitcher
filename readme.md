@@ -47,6 +47,7 @@ Android的一个轻量化的、无需保活的调度器管理器模块
 - fps_idle_time: 等待此毫秒空闲后切换到down_fps
 - down_fps: 空闲刷新率                   
 - up_fps: 触摸时刷新率                
+- lowbri_for_fps: 低于此亮度时锁定60fps
 - fps_backdoor: 使用sf的backdoor调节。可能引发系统的其他问题。
 - fps_backdoor_id: backdoor的操作id,一般1035
 - screen_resolution: backdoor启用时，存在多个分辨率的设备可能需要指定，以免调整中混乱
