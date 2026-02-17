@@ -92,10 +92,21 @@ private:
 
         try {
             nlohmann::json log_data = nlohmann::json::parse(file);
+            nlohmann::json mdata;
+            if(log_data.is_array()) {
+                mdata=log_data;
+            } else if(log_data.is_object()){
+                if(log_data.contains("data")){
+                    mdata=log_data["data"];
+                    if(log_data.contains("unit")){
+                        unit_=log_data.value("unit",12);
+                    }
+                }
+            }
 
-            if (log_data.is_array()) {
+            if (mdata.is_array()) {
                 std::lock_guard<std::mutex> lock(data_mutex_);
-                for (const auto& entry : log_data) {
+                for (const auto& entry : mdata) {
                     if (entry.contains("name") && entry.contains("time_sec") && entry.contains("power_joules")) {
                         std::string name = entry["name"].get<std::string>();
                         AppPower stats;
@@ -123,10 +134,16 @@ private:
             log_array.push_back(entry);
         }
 
+        nlohmann::json logdata = nlohmann::json::object();
+
+        logdata["unit"]=unit_.load(std::memory_order_relaxed);
+
+        logdata["data"]= log_array;
+
         try {
             std::ofstream file(LOG_FILE, std::ios::trunc);
             if (file.is_open()) {
-                file << log_array.dump(4);  // 使用4空格缩进，便于阅读
+                file << logdata.dump(4); 
                 LOGD("Saved power log to %s", LOG_FILE.c_str());
             } else {
                 LOGW("Failed to open power log file for writing");

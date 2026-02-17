@@ -29,7 +29,7 @@
     CONFIG_ITEM(bool, fps_backdoor, false)            \
     CONFIG_ITEM(int, fps_backdoor_id, 1035)           \
     CONFIG_ITEM(std::string, screen_resolution, "")   \
-    CONFIG_ITEM(int, lowbri_for_fps, -10)
+    CONFIG_ITEM(int, lowbri_for_fps, -10)   
 
 // 文件配置目标基类
 class FileConfigTarget : public ConfigTarget {
