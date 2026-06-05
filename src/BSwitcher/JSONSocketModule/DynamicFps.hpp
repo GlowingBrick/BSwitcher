@@ -26,6 +26,8 @@ private:
     nlohmann::json fpslist;
     mutable std::mutex fpsMutex;
 
+    bool* fpsforce;
+
 public:
     const std::unordered_map<std::string, std::map<int, int>> allfpsmap;  //带分辨率的列表
     std::atomic<const std::map<int, int>*> fpsmap;                        //当前列表
@@ -51,7 +53,7 @@ public:
         return {{"status", "error"}, {"message", "DynamicFps target is read-only"}};
     }
 
-    DynamicFpsTarget()
+    DynamicFpsTarget(bool* fps_force)
         : allfpsmap(getResolutionToDisplayModes()) {
         std::vector<std::string> filePaths;
         try {
@@ -69,6 +71,8 @@ public:
         fpslist = getAvailableRefreshRates();
 
         fpsmap = &allfpsmap.begin()->second;  //随便指一个
+
+        fpsforce = fps_force;
     }
 
     void init() {
@@ -115,9 +119,9 @@ private:
                 return;
             }
             if (lowbri.load(std::memory_order_relaxed) <= currentbri.load(std::memory_order_relaxed)) {
-                change_fps(up_fps.load(std::memory_order_relaxed), (++i) % 15 == 0);
+                change_fps(up_fps.load(std::memory_order_relaxed), ((++i) % 15 == 0) || *fpsforce);
             } else {
-                change_fps(60, (++i) % 15 == 0);  //低亮度锁60
+                change_fps(60, ((++i) % 15 == 0) || *fpsforce);  //低亮度锁60
             }
             waitfor_downfps(down_during_ms.load(std::memory_order_relaxed));
         }

@@ -17,7 +17,7 @@ int BSwitcher::init_service() {
     appListTarget = std::make_shared<ApplistConfigTarget>();
     availableModesTarget = std::make_shared<SimpleDataTarget>("availableModes", nlohmann::json::array({"powersave", "balance", "performance", "fast"}));
     powerMonitorTarget = std::make_shared<PowerMonitorTarget>(&currentApp, &mainConfigTarget->config.dual_battery);
-    dynamicFpsTarget = std::make_shared<DynamicFpsTarget>();
+    dynamicFpsTarget = std::make_shared<DynamicFpsTarget>(&mainConfigTarget->config.fps_force);
     configlistTarget = std::make_shared<SimpleDataTarget>("configlist", CONFIG_SCHEMA);
     configButtonTarget = std::make_shared<ConfigButtonTarget>(
         [this](const std::string& key) {

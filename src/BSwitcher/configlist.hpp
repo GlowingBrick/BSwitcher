@@ -103,6 +103,13 @@ const nlohmann::json CONFIG_SCHEMA = {                             //定义前�
      {"category", "动态刷新率"},
     {"dependsOn", {{"field", "dynamic_fps"}, {"condition", true}}}},
 
+    {{"key", "fps_force"},
+     {"type", "checkbox"},
+     {"label", "强制应用fps"},
+     {"description", "每次写入fps, 稳定性更好, 可能增加功耗"},
+     {"category", "动态刷新率"},
+    {"dependsOn", {{"field", "dynamic_fps"}, {"condition", true}}}},
+
     {{"key", "fps_backdoor"},
      {"type", "checkbox"},
      {"label", "使用Backdoor"},
