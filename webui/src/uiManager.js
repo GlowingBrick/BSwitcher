@@ -2,6 +2,7 @@
 import { InfoManager } from './infoManager.js';
 import { pathConfig } from './pathConfig.js';
 import { SocketClient } from './socketClient.js';
+import { CustomDropdown } from './customDropdown.js';
 
 export class UIManager {
     constructor(configManager, appLoader) {
@@ -15,6 +16,7 @@ export class UIManager {
         this.configModal = document.getElementById('configModal');
         this.powerModal = document.getElementById('powerDataModal');
         this.logsModal = document.getElementById('logsModal');
+        this.appPickerModal = document.getElementById('appPickerModal');
 
         this.allApps = [];
         this.refreshBtn = null;
@@ -26,18 +28,27 @@ export class UIManager {
         this.configCategories = {};
 
         this.availableFps = [-1];
+
+        // 自定义下拉框实例
+        this.defaultModeDropdown = null;
+        this.modeDropdown = null;
+        this.downFpsDropdown = null;
+        this.upFpsDropdown = null;
+
+        // 应用选择器状态
+        this.selectedAppPackage = '';
+        this.selectedAppName = '';
     }
 
     async init() {
         await this.loadConfigFields();
         await this.loadSystemInfo();
         await this.loadAvailableFps();
+        this.initDefaultModeDropdown();
         this.bindEvents();
         this.renderDefaultMode();
         this.renderRulesList();
-        this.populateModeSelects();
         this.allApps = this.appLoader.getAvailableApps();
-        this.populateAppSelect();
     }
 
     async loadAvailableFps() {
@@ -88,6 +99,15 @@ export class UIManager {
         document.getElementById('cancelBtn').addEventListener('click', () => this.hideModal());
         document.getElementById('saveRuleBtn').addEventListener('click', () => this.saveRule());
 
+        // 应用选择器弹窗
+        document.getElementById('appPickerBtn').addEventListener('click', () => this.showAppPicker());
+        document.getElementById('appPickerSearch').addEventListener('input', (e) => this.filterAppPicker(e.target.value));
+        // 应用选择器的关闭按钮只关自己
+        this.appPickerModal.querySelector('[data-close]').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.hideAppPicker();
+        });
+
         // 日志
         document.getElementById('showLogsBtn').addEventListener('click', () => this.showLogsModal());
         document.getElementById('closeLogsBtn').addEventListener('click', () => this.hideLogsModal());
@@ -125,12 +145,6 @@ export class UIManager {
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') this.hideAllModals();
         });
-
-        // 搜索
-        const appSearch = document.getElementById('appSearch');
-        if (appSearch) {
-            appSearch.addEventListener('input', (e) => this.searchApps(e.target.value));
-        }
 
         // 刷新应用列表
         this.refreshBtn = document.getElementById('refreshAppListBtn');
@@ -174,23 +188,20 @@ export class UIManager {
         this.logsModal.style.display = 'none';
         this.powerModal.style.display = 'none';
         this.configModal.style.display = 'none';
+        if (this.appPickerModal) this.appPickerModal.style.display = 'none';
         this.hideOverlay();
     }
 
     showModal() {
         this.showOverlay();
         this.modal.style.display = 'block';
-        const appSearch = document.getElementById('appSearch');
-        const modeSelect = document.getElementById('modeSelect');
-        const downFpsSelect = document.getElementById('downFpsSelect');
-        const upFpsSelect = document.getElementById('upFpsSelect');
-        const downFpsParent = downFpsSelect?.closest('.form-group');
-        const upFpsParent = upFpsSelect?.closest('.form-group');
 
-        if (appSearch) appSearch.value = '';
-        if (modeSelect) modeSelect.value = this.configManager.getConfig().defaultMode;
-        if (downFpsSelect) downFpsSelect.value = -1;
-        if (upFpsSelect) upFpsSelect.value = -1;
+        // 初始化自定义下拉框
+        this.initAddRuleDropdowns();
+
+        // 检查是否显示FPS选择
+        const downFpsParent = document.getElementById('downFpsSelect')?.closest('.form-group');
+        const upFpsParent = document.getElementById('upFpsSelect')?.closest('.form-group');
 
         (async () => {
             try {
@@ -203,8 +214,6 @@ export class UIManager {
                 if (upFpsParent) upFpsParent.style.display = 'none';
             }
         })();
-
-        this.populateAppSelect();
     }
 
     hideModal() {
@@ -244,8 +253,23 @@ export class UIManager {
         this.powerModal.style.display = 'block';
         const powerList = document.getElementById('powerList');
         const powerSummary = document.getElementById('powerSummary');
+        const listSection = document.querySelector('.power-list-section');
         if (powerList) powerList.innerHTML = '<div class="logs-loading">正在加载功耗数据...</div>';
         if (powerSummary) powerSummary.innerHTML = '<div class="logs-loading">正在计算统计...</div>';
+
+        // 移除旧的折叠状态
+        if (powerSummary) powerSummary.classList.remove('collapsed');
+
+        // 绑定滚动监听 - 列表滚动时折叠顶部统计
+        if (listSection && powerSummary) {
+            listSection.onscroll = () => {
+                if (listSection.scrollTop > 10) {
+                    powerSummary.classList.add('collapsed');
+                } else {
+                    powerSummary.classList.remove('collapsed');
+                }
+            };
+        }
 
         try {
             const request = { target: 'powerdata', mode: 'read' };
@@ -369,70 +393,6 @@ export class UIManager {
         }
     }
 
-    // ========== 应用选择 ==========
-    populateAppSelect(searchTerm = '') {
-        const appSelect = document.getElementById('appSelect');
-        const appCount = document.getElementById('appCount');
-        if (!appSelect || !appCount) return;
-
-        let apps = searchTerm ? this.appLoader.searchApps(searchTerm) : this.allApps;
-        appSelect.innerHTML = '';
-
-        if (apps.length === 0) {
-            const opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = searchTerm ? '未找到匹配的应用' : '暂无应用数据';
-            opt.disabled = true;
-            appSelect.appendChild(opt);
-            appCount.textContent = searchTerm ? '未找到匹配的应用' : '暂无应用数据';
-            return;
-        }
-
-        const defaultOpt = document.createElement('option');
-        defaultOpt.value = '';
-        defaultOpt.textContent = '请选择应用';
-        defaultOpt.disabled = true;
-        defaultOpt.selected = true;
-        appSelect.appendChild(defaultOpt);
-
-        apps.forEach(app => {
-            const hasRule = this.configManager.hasRuleForApp(app.packageName);
-            const opt = document.createElement('option');
-            opt.value = app.packageName;
-            opt.textContent = hasRule ? `${app.name} - 已配置` : app.name;
-            appSelect.appendChild(opt);
-        });
-
-        appSelect.onchange = (e) => this.onAppSelectChange(e.target.value);
-        appCount.textContent = searchTerm ? `搜索到 ${apps.length} 个应用` : `共 ${apps.length} 个应用`;
-    }
-
-    searchApps(term) { this.populateAppSelect(term); }
-
-    async onAppSelectChange(pkg) {
-        if (!pkg) return;
-        if (this.configManager.hasRuleForApp(pkg)) {
-            const config = this.configManager.getConfig();
-            const rule = config.rules.find(r => r.appPackage === pkg);
-            if (rule) {
-                const modeSelect = document.getElementById('modeSelect');
-                const downFpsSelect = document.getElementById('downFpsSelect');
-                const upFpsSelect = document.getElementById('upFpsSelect');
-                if (modeSelect) modeSelect.value = rule.mode || config.defaultMode;
-                if (downFpsSelect) downFpsSelect.value = rule.down_fps ?? -1;
-                if (upFpsSelect) upFpsSelect.value = rule.up_fps ?? -1;
-            }
-        } else {
-            const config = this.configManager.getConfig();
-            const modeSelect = document.getElementById('modeSelect');
-            const downFpsSelect = document.getElementById('downFpsSelect');
-            const upFpsSelect = document.getElementById('upFpsSelect');
-            if (modeSelect) modeSelect.value = config.defaultMode;
-            if (downFpsSelect) downFpsSelect.value = -1;
-            if (upFpsSelect) upFpsSelect.value = -1;
-        }
-    }
-
     // ========== 刷新列表 ==========
     async refreshAppList() {
         if (!this.refreshBtn) return;
@@ -440,7 +400,7 @@ export class UIManager {
         try {
             await this.appLoader.reloadAppList();
             this.allApps = this.appLoader.getAvailableApps();
-            this.populateAppSelect();
+            this.updateAppCount();
             this.setRefreshButtonState('success');
             this.showToast('应用列表刷新成功');
             setTimeout(() => this.setRefreshButtonState('normal'), 2000);
@@ -461,42 +421,153 @@ export class UIManager {
     }
 
     // ========== 模式选择 ==========
-    populateModeSelects() {
-        const defaultModeSelect = document.getElementById('defaultMode');
-        const modeSelect = document.getElementById('modeSelect');
-        const downFpsSelect = document.getElementById('downFpsSelect');
-        const upFpsSelect = document.getElementById('upFpsSelect');
-        if (!defaultModeSelect || !modeSelect || !downFpsSelect || !upFpsSelect) return;
+    initDefaultModeDropdown() {
+        const container = document.getElementById('defaultMode');
+        if (!container) return;
 
         const modes = this.configManager.getAvailableModes();
-        [defaultModeSelect, modeSelect].forEach(sel => {
-            sel.innerHTML = '';
-            modes.forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m; opt.textContent = m;
-                sel.appendChild(opt);
-            });
-        });
-
-        [downFpsSelect, upFpsSelect].forEach(sel => {
-            sel.innerHTML = '';
-            this.availableFps.forEach(fps => {
-                const opt = document.createElement('option');
-                opt.value = fps;
-                opt.textContent = fps === -1 ? '默认' : `${fps} FPS`;
-                sel.appendChild(opt);
-            });
-        });
-
         const config = this.configManager.getConfig();
-        defaultModeSelect.value = config.defaultMode;
-        downFpsSelect.value = -1;
-        upFpsSelect.value = -1;
+
+        this.defaultModeDropdown = new CustomDropdown(container, {
+            items: modes.map(m => ({ value: m, label: m })),
+            value: config.defaultMode,
+            placeholder: '请选择模式',
+            onChange: (value) => {
+                this.configManager.updateDefaultMode(value);
+            }
+        });
     }
 
     renderDefaultMode() {
-        const sel = document.getElementById('defaultMode');
-        if (sel) sel.value = this.configManager.getConfig().defaultMode;
+        if (this.defaultModeDropdown) {
+            const config = this.configManager.getConfig();
+            this.defaultModeDropdown.setValue(config.defaultMode);
+        }
+    }
+
+    initAddRuleDropdowns() {
+        const modes = this.configManager.getAvailableModes();
+        const fpsItems = this.availableFps.map(f => ({ value: f, label: f === -1 ? '默认' : `${f} FPS` }));
+        const config = this.configManager.getConfig();
+
+        // 重置应用选择状态
+        this.selectedAppPackage = '';
+        this.selectedAppName = '';
+        const label = document.getElementById('appPickerLabel');
+        if (label) { label.textContent = '点击选择应用'; label.classList.add('placeholder'); }
+
+        // 模式选择下拉框
+        const modeContainer = document.getElementById('modeSelect');
+        if (modeContainer) {
+            this.modeDropdown = new CustomDropdown(modeContainer, {
+                items: modes.map(m => ({ value: m, label: m })),
+                value: config.defaultMode,
+                placeholder: '请选择模式',
+                onChange: () => {}
+            });
+        }
+
+        // FPS下拉框
+        const downContainer = document.getElementById('downFpsSelect');
+        if (downContainer) {
+            this.downFpsDropdown = new CustomDropdown(downContainer, {
+                items: fpsItems,
+                value: -1,
+                placeholder: '选择空闲帧率',
+                onChange: () => {}
+            });
+        }
+
+        const upContainer = document.getElementById('upFpsSelect');
+        if (upContainer) {
+            this.upFpsDropdown = new CustomDropdown(upContainer, {
+                items: fpsItems,
+                value: -1,
+                placeholder: '选择触摸帧率',
+                onChange: () => {}
+            });
+        }
+
+        // 更新应用计数
+        this.updateAppCount();
+    }
+
+    updateAppCount(count) {
+        const el = document.getElementById('appCount');
+        if (el) {
+            el.textContent = count !== undefined ? count : `共 ${this.allApps.length} 个应用`;
+        }
+    }
+
+    // ========== 应用选择器弹窗 ==========
+    showAppPicker() {
+        this.appPickerModal.style.display = 'flex';
+        this.renderAppPickerList('');
+        const searchInput = document.getElementById('appPickerSearch');
+        if (searchInput) { searchInput.value = ''; setTimeout(() => searchInput.focus(), 100); }
+    }
+
+    hideAppPicker() {
+        this.appPickerModal.style.display = 'none';
+    }
+
+    renderAppPickerList(filter = '') {
+        const listEl = document.getElementById('appPickerList');
+        if (!listEl) return;
+        const lf = filter.toLowerCase();
+        const apps = filter
+            ? this.allApps.filter(a => a.name.toLowerCase().includes(lf) || a.packageName.toLowerCase().includes(lf))
+            : this.allApps;
+
+        if (apps.length === 0) {
+            listEl.innerHTML = '<div class="app-picker-empty">未找到匹配的应用</div>';
+            return;
+        }
+
+        listEl.innerHTML = apps.map(app => {
+            const hasRule = this.configManager.hasRuleForApp(app.packageName);
+            const sel = app.packageName === this.selectedAppPackage ? ' selected' : '';
+            return `<div class="app-picker-item${sel}" data-pkg="${app.packageName}">
+                <span class="app-name">${app.name}${hasRule ? ' <span class="app-badge">已配置</span>' : ''}</span>
+                <span class="app-pkg">${app.packageName}</span>
+            </div>`;
+        }).join('');
+
+        listEl.querySelectorAll('.app-picker-item').forEach(el => {
+            el.addEventListener('click', () => this.selectAppFromPicker(el.dataset.pkg));
+        });
+    }
+
+    filterAppPicker(term) {
+        this.renderAppPickerList(term);
+    }
+
+    selectAppFromPicker(pkg) {
+        const app = this.allApps.find(a => a.packageName === pkg);
+        if (!app) return;
+        this.selectedAppPackage = pkg;
+        this.selectedAppName = app.name;
+
+        const label = document.getElementById('appPickerLabel');
+        if (label) { label.textContent = app.name; label.classList.remove('placeholder'); }
+
+        // 自动填充已有规则
+        if (this.configManager.hasRuleForApp(pkg)) {
+            const config = this.configManager.getConfig();
+            const rule = config.rules.find(r => r.appPackage === pkg);
+            if (rule) {
+                if (this.modeDropdown) this.modeDropdown.setValue(rule.mode || config.defaultMode);
+                if (this.downFpsDropdown) this.downFpsDropdown.setValue(rule.down_fps ?? -1);
+                if (this.upFpsDropdown) this.upFpsDropdown.setValue(rule.up_fps ?? -1);
+            }
+        } else {
+            const config = this.configManager.getConfig();
+            if (this.modeDropdown) this.modeDropdown.setValue(config.defaultMode);
+            if (this.downFpsDropdown) this.downFpsDropdown.setValue(-1);
+            if (this.upFpsDropdown) this.upFpsDropdown.setValue(-1);
+        }
+
+        this.hideAppPicker();
     }
 
     // ========== 规则列表 ==========
@@ -537,18 +608,15 @@ export class UIManager {
 
     // ========== 保存规则 ==========
     async saveRule() {
-        const appSelect = document.getElementById('appSelect');
-        const modeSelect = document.getElementById('modeSelect');
-        const downFpsSelect = document.getElementById('downFpsSelect');
-        const upFpsSelect = document.getElementById('upFpsSelect');
-        if (!appSelect || !modeSelect || !downFpsSelect || !upFpsSelect) return;
+        if (!this.selectedAppPackage || !this.modeDropdown || !this.downFpsDropdown || !this.upFpsDropdown) {
+            if (!this.selectedAppPackage) this.showToast('请选择应用');
+            return;
+        }
 
-        const appPackage = appSelect.value;
-        const mode = modeSelect.value;
-        const downFps = downFpsSelect.value === '' ? -1 : parseInt(downFpsSelect.value);
-        const upFps = upFpsSelect.value === '' ? -1 : parseInt(upFpsSelect.value);
-
-        if (!appPackage) { this.showToast('请选择应用'); return; }
+        const appPackage = this.selectedAppPackage;
+        const mode = this.modeDropdown.getValue();
+        const downFps = this.downFpsDropdown.getValue() ?? -1;
+        const upFps = this.upFpsDropdown.getValue() ?? -1;
 
         if (this.configManager.hasRuleForApp(appPackage)) {
             await this.configManager.removeRule(appPackage);
@@ -595,11 +663,33 @@ export class UIManager {
         const form = document.getElementById('configForm');
         if (!form) return;
         const config = this.infoManager.getConfig();
+        this.configDropdowns = {};
 
         form.innerHTML = Object.entries(this.configCategories).map(([cat, fields]) => {
             const items = fields.map(f => this.renderConfigField(f, config)).join('');
             return `<div class="config-group"><div class="config-group-title">${cat}</div>${items}</div>`;
         }).join('');
+
+        // 初始化 select 类型的自定义下拉框
+        this.configFields.forEach(field => {
+            if (field.type === 'select') {
+                const container = form.querySelector(`[data-dropdown-key="${field.key}"]`);
+                if (container) {
+                    const value = config[field.key] !== undefined ? config[field.key] : '';
+                    const options = this.getFieldOptions(field, config);
+                    const isDisabled = this.isFieldDisabled(field, config);
+                    this.configDropdowns[field.key] = new CustomDropdown(container, {
+                        items: options,
+                        value: value,
+                        placeholder: '请选择',
+                        onChange: (val) => {
+                            this.onConfigFieldChange(field.key, val);
+                        }
+                    });
+                    if (isDisabled) container.closest('.config-item')?.classList.add('disabled');
+                }
+            }
+        });
 
         this.bindFieldDependencies();
     }
@@ -618,7 +708,7 @@ export class UIManager {
                 inputHtml = `<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="${field.key}" ${value ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}> <span style="font-size:12px;color:var(--text-secondary)">${field.description}</span></label>`;
                 break;
             case 'select':
-                inputHtml = `<select class="input-select" name="${field.key}" ${isDisabled ? 'disabled' : ''}>${options.map(o => `<option value="${o.value}" ${value === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}</select>`;
+                inputHtml = `<div data-dropdown-key="${field.key}" class="dropdown-wrap"></div>`;
                 break;
             case 'button':
                 inputHtml = `<button type="button" class="btn btn-ghost config-btn" data-key="${field.key}" ${isDisabled ? 'disabled' : ''}>${field.label}</button>`;
@@ -631,6 +721,10 @@ export class UIManager {
         const descHtml = field.type === 'checkbox' ? '' : `<div class="config-desc">${field.description}</div>`;
 
         return `<div class="config-item ${isDisabled ? 'disabled' : ''}">${labelHtml}${inputHtml}${descHtml}</div>`;
+    }
+
+    onConfigFieldChange(key, value) {
+        this.updateDependentFields();
     }
 
     groupConfigByCategory() {
@@ -680,12 +774,19 @@ export class UIManager {
         const config = this.getCurrentConfigFormData();
         this.configFields.forEach(field => {
             if (field.dependsOn) {
+                const dis = this.isFieldDisabled(field, config);
+                // 原生 input 元素
                 const input = document.querySelector(`[name="${field.key}"]`);
                 const container = input?.closest('.config-item');
                 if (input && container) {
-                    const dis = this.isFieldDisabled(field, config);
                     input.disabled = dis;
                     container.classList.toggle('disabled', dis);
+                }
+                // 自定义下拉框
+                const ddContainer = document.querySelector(`[data-dropdown-key="${field.key}"]`);
+                if (ddContainer) {
+                    const configItem = ddContainer.closest('.config-item');
+                    if (configItem) configItem.classList.toggle('disabled', dis);
                 }
             }
         });
@@ -733,13 +834,20 @@ export class UIManager {
 
     getCurrentConfigFormData() {
         const form = document.getElementById('configForm');
-        const inputs = form.querySelectorAll('input:not([type="button"]), select');
+        const inputs = form.querySelectorAll('input:not([type="button"])');
         const config = {};
         inputs.forEach(input => {
             if (input.type === 'checkbox') config[input.name] = input.checked;
             else if (input.type === 'number') config[input.name] = parseInt(input.value) || 0;
             else config[input.name] = input.value;
         });
+        // 从自定义下拉框获取值
+        if (this.configDropdowns) {
+            Object.keys(this.configDropdowns).forEach(key => {
+                const dd = this.configDropdowns[key];
+                if (dd) config[key] = dd.getValue();
+            });
+        }
         return config;
     }
 

@@ -45,14 +45,10 @@
 
         <!-- 默认模式 -->
         <section class="card mode-card">
-            <div class="card-header">
-                <h2 class="card-title">默认模式</h2>
-            </div>
             <div class="card-body">
                 <div class="mode-selector">
-                    <select id="defaultMode" class="input-select">
-                        <!-- 通过JS动态加载 -->
-                    </select>
+                    <span class="mode-label">默认模式</span>
+                    <div id="defaultMode" class="dropdown-wrap"></div>
                 </div>
             </div>
         </section>
@@ -75,12 +71,12 @@
     <div class="modal-overlay" id="modalOverlay">
         <!-- 能耗统计模态框 -->
         <div id="powerDataModal" class="modal" data-modal="power">
-            <div class="modal-box modal-lg">
+            <div class="modal-box modal-lg power-modal">
                 <div class="modal-header">
                     <h3 class="modal-title">能耗统计</h3>
                     <button class="modal-close" data-close="power" aria-label="关闭">&times;</button>
                 </div>
-                <div class="modal-body">
+                <div class="power-body">
                     <div id="powerSummary" class="power-summary"></div>
                     <div class="power-list-section">
                         <h4 class="section-label">应用功耗</h4>
@@ -137,35 +133,47 @@
                 </div>
                 <div class="modal-body">
                     <div class="form-group">
-                        <label class="form-label">搜索应用</label>
-                        <input type="text" id="appSearch" class="input-text" placeholder="输入应用名称或包名...">
-                    </div>
-                    <div class="form-group">
-                        <div class="form-label-row">
-                            <label class="form-label">选择应用</label>
-                            <button id="refreshAppListBtn" class="btn btn-ghost btn-xs" type="button">刷新列表</button>
-                        </div>
-                        <select id="appSelect" class="input-select"></select>
+                        <label class="form-label">选择应用</label>
+                        <button id="appPickerBtn" type="button" class="btn btn-ghost app-picker-trigger">
+                            <span id="appPickerLabel">点击选择应用</span>
+                            <span class="arrow">›</span>
+                        </button>
                         <div id="appCount" class="form-hint">共加载 0 个应用</div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">选择模式</label>
-                        <select id="modeSelect" class="input-select"></select>
+                        <div id="modeSelect" class="dropdown-wrap"></div>
                     </div>
                     <div class="form-row">
                         <div class="form-group form-half">
                             <label class="form-label">空闲帧率</label>
-                            <select id="downFpsSelect" class="input-select"></select>
+                            <div id="downFpsSelect" class="dropdown-wrap"></div>
                         </div>
                         <div class="form-group form-half">
                             <label class="form-label">触摸帧率</label>
-                            <select id="upFpsSelect" class="input-select"></select>
+                            <div id="upFpsSelect" class="dropdown-wrap"></div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button id="cancelBtn" class="btn btn-ghost" data-close="rule">取消</button>
                     <button id="saveRuleBtn" class="btn btn-accent">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 应用选择器弹窗 -->
+        <div id="appPickerModal" class="modal" data-modal="appPicker">
+            <div class="modal-box modal-md app-picker-box">
+                <div class="modal-header">
+                    <h3 class="modal-title">选择应用</h3>
+                    <button class="modal-close" data-close="appPicker" aria-label="关闭">&times;</button>
+                </div>
+                <div class="app-picker-search">
+                    <input type="text" id="appPickerSearch" placeholder="搜索应用名称或包名...">
+                </div>
+                <div id="appPickerList" class="app-picker-list">
+                    <!-- 动态填充 -->
                 </div>
             </div>
         </div>
