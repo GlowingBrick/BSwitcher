@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 
 <head>
     <meta charset="UTF-8">
@@ -9,167 +9,163 @@
 </head>
 
 <body>
-    <div class="container">
-        <header>
-            <h1>BSwitcher</h1>
-        </header>
+    <!-- 顶部导航栏 -->
+    <nav class="app-nav">
+        <div class="nav-brand">
+            <span class="brand-logo">BS</span>
+            <span class="brand-name">BSwitcher</span>
+        </div>
+        <div class="nav-actions">
+            <button id="showPowerDataBtn" class="nav-btn" title="能耗统计">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </button>
+            <button id="showLogsBtn" class="nav-btn" title="日志">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+            </button>
+            <button id="showConfigBtn" class="nav-btn" title="系统配置">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            </button>
+            <button id="themeToggle" class="nav-btn" title="切换主题">
+                <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
+        </div>
+    </nav>
 
-        <div class="section">
-            <div class="section-header">
-                <h2>系统信息</h2>
-                <div class="btn-head">
-                    <button id="showPowerDataBtn" class="btn btn-icon" title="功耗列表">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#ee0000" d="M4 5a1 1 0 0 0 0 2h16a1 1 0 1 0 0-2zm0 4a1 1 0 0 0 0 2h9.395l.068-.142A1.5 1.5 0 0 1 14.818 10H21a1 1 0 0 0-1-1zm0 4h8.448l-.948 2H4a1 1 0 1 1 0-2m0 4h6.553l-.407.858A1.48 1.48 0 0 0 10.087 19H4a1 1 0 1 1 0-2m10.811-6h6.32c.381 0 .622.413.434.748l-1.828 3.268h1.513c.64 0 .985.755.567 1.244l-6.406 7.48c-.521.61-1.496.053-1.243-.71l1.326-4H11.5a.502.502 0 0 1-.451-.716l3.31-7.027a.5.5 0 0 1 .452-.287"/></svg>
-                    </button>
-                    <button id="showLogsBtn" class="btn btn-icon" title="查看日志">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="#00FFCC" d="M10.5 8c.786 0 1.512-.26 2.096-.697l2.55 2.55a.5.5 0 1 0 .708-.707l-2.55-2.55A3.5 3.5 0 1 0 10.5 8m0-1a2.5 2.5 0 1 1 0-5a2.5 2.5 0 0 1 0 5m3.435 3.056L12.879 9H2.75a.75.75 0 0 0 0 1.5h10.5a.75.75 0 0 0 .685-.444M7.145 7.5A4.5 4.5 0 0 1 6.257 6H2.75a.75.75 0 0 0 0 1.5zM6.257 3C6.09 3.47 6 3.974 6 4.5H2.75a.75.75 0 0 1 0-1.5zM2.75 12a.75.75 0 0 0 0 1.5h10.5a.75.75 0 0 0 0-1.5z"/></svg>
-                    </button>
-                    <button id="showConfigBtn" class="btn btn-icon" title="系统配置">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                            <path fill="#66ccff" d="M12.012 2.25c.734.008 1.465.093 2.182.253a.75.75 0 0 1 .582.649l.17 1.527a1.384 1.384 0 0 0 1.927 1.116l1.4-.615a.75.75 0 0 1 .85.174a9.8 9.8 0 0 1 2.205 3.792a.75.75 0 0 1-.272.825l-1.241.916a1.38 1.38 0 0 0 0 2.226l1.243.915a.75.75 0 0 1 .272.826a9.8 9.8 0 0 1-2.204 3.792a.75.75 0 0 1-.849.175l-1.406-.617a1.38 1.38 0 0 0-1.926 1.114l-.17 1.526a.75.75 0 0 1-.571.647a9.5 9.5 0 0 1-4.406 0a.75.75 0 0 1-.572-.647l-.169-1.524a1.382 1.382 0 0 0-1.925-1.11l-1.406.616a.75.75 0 0 1-.85-.175a9.8 9.8 0 0 1-2.203-3.796a.75.75 0 0 1 .272-.826l1.243-.916a1.38 1.38 0 0 0 0-2.226l-1.243-.914a.75.75 0 0 1-.272-.826a9.8 9.8 0 0 1 2.205-3.792a.75.75 0 0 1 .85-.174l1.4.615a1.387 1.387 0 0 0 1.93-1.118l.17-1.526a.75.75 0 0 1 .583-.65q1.074-.238 2.201-.252M12 9a3 3 0 1 0 0 6a3 3 0 0 0 0-6" />
-                        </svg>
-                    </button>
+    <!-- 主内容区 -->
+    <main class="app-main">
+        <!-- 系统信息 -->
+        <section class="card info-card">
+            <div class="card-body">
+                <div id="systemInfo" class="system-info">
+                    <!-- 通过JS动态生成 -->
+                </div>
             </div>
+        </section>
+
+        <!-- 默认模式 -->
+        <section class="card mode-card">
+            <div class="card-header">
+                <h2 class="card-title">默认模式</h2>
             </div>
-            <div id="systemInfo" class="system-info">
-                <!-- 系统信息将通过JS动态生成 -->
+            <div class="card-body">
+                <div class="mode-selector">
+                    <select id="defaultMode" class="input-select">
+                        <!-- 通过JS动态加载 -->
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <!-- 应用规则 -->
+        <section class="card rules-card">
+            <div class="card-header">
+                <h2 class="card-title">应用规则</h2>
+                <button id="addRuleBtn" class="btn btn-accent">+ 添加</button>
+            </div>
+            <div class="card-body">
+                <div id="rulesList" class="rules-list">
+                    <!-- 通过JS动态生成 -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 模态框统一管理 -->
+    <div class="modal-overlay" id="modalOverlay">
+        <!-- 能耗统计模态框 -->
+        <div id="powerDataModal" class="modal" data-modal="power">
+            <div class="modal-box modal-lg">
+                <div class="modal-header">
+                    <h3 class="modal-title">能耗统计</h3>
+                    <button class="modal-close" data-close="power" aria-label="关闭">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="powerSummary" class="power-summary"></div>
+                    <div class="power-list-section">
+                        <h4 class="section-label">应用功耗</h4>
+                        <div id="powerList" class="power-list"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="closePowerBtn" class="btn btn-ghost" data-close="power">关闭</button>
+                </div>
             </div>
         </div>
 
-        <!-- 功耗列表模态框 -->
-        <div id="powerDataModal" class="modal">
-            <div class="modal-content" style="max-width: 800px;">
+        <!-- 日志模态框 -->
+        <div id="logsModal" class="modal" data-modal="logs">
+            <div class="modal-box modal-lg">
                 <div class="modal-header">
-                    <h3>能耗统计</h3>
-                    <span class="close-power">&times;</span>
+                    <h3 class="modal-title">BSwitcher 日志</h3>
+                    <button class="modal-close" data-close="logs" aria-label="关闭">&times;</button>
                 </div>
-                <div class="modal-body">
-                    <!-- 总体统计 -->
-                    <div id="powerSummary" class="power-summary">
-                        <!-- 总体统计信息将通过JS动态生成 -->
-                    </div>
-
-                    <!-- 应用功耗列表 -->
-                    <div class="power-list-container">
-                        <h4>应用功耗</h4>
-                        <div id="powerList" class="power-list">
-                            <!-- 功耗列表将通过JS动态生成 -->
-                        </div>
-                    </div>
-
-                    <div class="form-actions">
-                        <button id="closePowerBtn" class="btn btn-primary">关闭</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="logsModal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>BSwitcher 日志</h3>
-                    <span class="close-logs">&times;</span>
-                </div>
-                <div class="modal-body">
+                <div class="modal-body modal-body-compact">
                     <div class="logs-container">
                         <pre id="logsContent" class="logs-content"></pre>
                     </div>
-                    <div class="form-actions">
-                        <button id="closeLogsBtn" class="btn btn-primary">关闭</button>
+                </div>
+                <div class="modal-footer">
+                    <button id="closeLogsBtn" class="btn btn-ghost" data-close="logs">关闭</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 系统配置模态框 -->
+        <div id="configModal" class="modal" data-modal="config">
+            <div class="modal-box modal-md">
+                <div class="modal-header">
+                    <h3 class="modal-title">系统配置</h3>
+                    <button class="modal-close" data-close="config" aria-label="关闭">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="configForm" class="config-form"></div>
+                </div>
+                <div class="modal-footer">
+                    <button id="cancelConfigBtn" class="btn btn-ghost" data-close="config">取消</button>
+                    <button id="saveConfigBtn" class="btn btn-accent">保存配置</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 添加规则模态框 -->
+        <div id="addRuleModal" class="modal" data-modal="rule">
+            <div class="modal-box modal-md">
+                <div class="modal-header">
+                    <h3 class="modal-title">添加应用规则</h3>
+                    <button class="modal-close" data-close="rule" aria-label="关闭">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">搜索应用</label>
+                        <input type="text" id="appSearch" class="input-text" placeholder="输入应用名称或包名...">
+                    </div>
+                    <div class="form-group">
+                        <div class="form-label-row">
+                            <label class="form-label">选择应用</label>
+                            <button id="refreshAppListBtn" class="btn btn-ghost btn-xs" type="button">刷新列表</button>
+                        </div>
+                        <select id="appSelect" class="input-select"></select>
+                        <div id="appCount" class="form-hint">共加载 0 个应用</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">选择模式</label>
+                        <select id="modeSelect" class="input-select"></select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group form-half">
+                            <label class="form-label">空闲帧率</label>
+                            <select id="downFpsSelect" class="input-select"></select>
+                        </div>
+                        <div class="form-group form-half">
+                            <label class="form-label">触摸帧率</label>
+                            <select id="upFpsSelect" class="input-select"></select>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- 默认模式设置 -->
-        <div class="section">
-            <h2>默认模式</h2>
-            <div class="default-mode">
-                <select id="defaultMode">
-                    <!-- 模式选项将通过JS动态加载 -->
-                </select>
-            </div>
-        </div>
-
-        <!-- 应用规则列表 -->
-        <div class="section">
-            <div class="section-header">
-                <h2>应用规则</h2>
-                <button id="addRuleBtn" class="btn btn-primary">+ 添加规则</button>
-            </div>
-            <div id="rulesList" class="rules-list">
-                <!-- 规则列表将通过JS动态生成 -->
-            </div>
-        </div>
-    </div> 
-
-    <!-- 配置模态框 -->
-    <div id="configModal" class="modal">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h3>系统配置</h3>
-                <span class="close-config">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div id="configForm" class="config-form">
-                    <!-- 配置表单将通过JS动态生成 -->
-                </div>
-                <div class="form-actions">
-                    <button id="cancelConfigBtn" class="btn btn-secondary">取消</button>
-                    <button id="saveConfigBtn" class="btn btn-primary">保存配置</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 添加规则的模态框 -->
-    <div id="addRuleModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>添加应用规则</h3>
-                <span class="close">&times;</span>
-            </div>
-            <div class="modal-body">
-                <!-- 搜索框 -->
-                <div class="form-group">
-                    <label for="appSearch">搜索应用:</label>
-                    <input type="text" id="appSearch" placeholder="输入应用名称或包名进行搜索..." class="search-input">
-                </div>
-
-                <!-- 应用选择区域 -->
-                <div class="form-group">
-                    <div class="form-group-header">
-                        <label for="appSelect">选择应用:</label>
-                        <button id="refreshAppListBtn" class="btn btn-secondary btn-small" type="button">
-                            🔄 刷新列表
-                        </button>
-                    </div>
-                    <select id="appSelect">
-                        <!-- 应用选项将通过JS动态加载 -->
-                    </select>
-                    <div id="appCount" class="app-count">共加载 0 个应用</div>
-                </div>
-
-                <!-- 模式选择 -->
-                <div class="form-group">
-                    <label for="modeSelect">选择模式:</label>
-                    <select id="modeSelect">
-                        <!-- 模式选项将通过JS动态加载 -->
-                    </select>
-                    <label for="downFpsSelect">选择空闲帧率:</label>
-                    <select id="downFpsSelect">
-                        <!-- 模式选项将通过JS动态加载 -->
-                    </select>
-                    <label for="upFpsSelect">选择触摸帧率:</label>
-                    <select id="upFpsSelect">
-                        <!-- 模式选项将通过JS动态加载 -->
-                    </select>
-                </div>
-
-                <!-- 操作按钮 -->
-                <div class="form-actions">
-                    <button id="cancelBtn" class="btn btn-secondary">取消</button>
-                    <button id="saveRuleBtn" class="btn btn-primary">保存</button>
+                <div class="modal-footer">
+                    <button id="cancelBtn" class="btn btn-ghost" data-close="rule">取消</button>
+                    <button id="saveRuleBtn" class="btn btn-accent">保存</button>
                 </div>
             </div>
         </div>

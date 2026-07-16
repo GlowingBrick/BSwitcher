@@ -10,6 +10,7 @@ export class UIManager {
         this.appLoader = appLoader;
         this.infoManager = new InfoManager();
 
+        this.modalOverlay = document.getElementById('modalOverlay');
         this.modal = document.getElementById('addRuleModal');
         this.configModal = document.getElementById('configModal');
         this.powerModal = document.getElementById('powerDataModal');
@@ -24,10 +25,9 @@ export class UIManager {
         this.configFields = [];
         this.configCategories = {};
 
-        this.availableFps = [-1]; // 默认包含-1
+        this.availableFps = [-1];
     }
 
-    // 初始化UI
     async init() {
         await this.loadConfigFields();
         await this.loadSystemInfo();
@@ -42,866 +42,514 @@ export class UIManager {
 
     async loadAvailableFps() {
         try {
-            const request = {
-                target: 'dynamicFps',
-                mode: 'read'
-            };
+            const request = { target: 'dynamicFps', mode: 'read' };
             const fpsList = await this.socketClient.communicate(request);
-
             this.availableFps = [-1, ...fpsList.map(fps => Number(fps))];
-            console.log('可用FPS列表:', this.availableFps);
-        } catch (error) {
-            console.error('加载FPS列表失败:', error);
+        } catch {
             this.availableFps = [-1, 30, 60, 90, 120];
         }
     }
 
-    // 加载配置字段定义
     async loadConfigFields() {
         try {
             await this.infoManager.loadConfigFields();
             this.configFields = this.infoManager.getConfigFields();
             this.configCategories = this.groupConfigByCategory();
-        } catch (error) {
+        } catch {
             this.configFields = [];
             this.configCategories = {};
         }
     }
 
-    // 加载系统信息
     async loadSystemInfo() {
         try {
             await this.infoManager.loadSystemInfo();
             this.renderSystemInfo();
-        } catch (error) {
-        }
+        } catch { /* silent */ }
     }
 
-    // 渲染系统信息
     renderSystemInfo() {
         const systemInfo = this.infoManager.getSystemInfo();
-        const systemInfoElement = document.getElementById('systemInfo');
-
-        if (systemInfoElement && systemInfo) {
-            systemInfoElement.innerHTML = `
-                <div class="app-name">${systemInfo.name || 'BSwitcher'}</div>
-                <div class="app-meta">
-                    <div>作者: ${systemInfo.author || 'Unknown'}</div>
-                    <div>版本: ${systemInfo.version || '1.0.0'}</div>
-                </div>
-            `;
+        const el = document.getElementById('systemInfo');
+        if (el && systemInfo) {
+            el.innerHTML = `
+                <div class="info-name">${systemInfo.name || 'BSwitcher'}</div>
+                <div class="info-meta">
+                    <span>${systemInfo.author || 'Unknown'}</span>
+                    <span>v${systemInfo.version || '1.0.0'}</span>
+                </div>`;
         }
     }
 
-    // 绑定事件
+    // ========== 事件绑定 ==========
     bindEvents() {
-        // 添加规则按钮
-        document.getElementById('addRuleBtn').addEventListener('click', () => {
-            this.showModal();
-        });
+        // 添加规则
+        document.getElementById('addRuleBtn').addEventListener('click', () => this.showModal());
+        document.getElementById('cancelBtn').addEventListener('click', () => this.hideModal());
+        document.getElementById('saveRuleBtn').addEventListener('click', () => this.saveRule());
 
-        // 模态框关闭按钮
-        document.querySelector('.close').addEventListener('click', () => {
-            this.hideModal();
-        });
+        // 日志
+        document.getElementById('showLogsBtn').addEventListener('click', () => this.showLogsModal());
+        document.getElementById('closeLogsBtn').addEventListener('click', () => this.hideLogsModal());
 
-        // 取消按钮
-        document.getElementById('cancelBtn').addEventListener('click', () => {
-            this.hideModal();
-        });
-
-        // 保存规则按钮
-        document.getElementById('saveRuleBtn').addEventListener('click', () => {
-            this.saveRule();
-        });
-
-        // 日志按钮事件
-        document.getElementById('showLogsBtn').addEventListener('click', () => {
-            this.showLogsModal();
-        });
-
-        document.querySelector('.close-logs').addEventListener('click', () => {
-            this.hideLogsModal();
-        });
-
-        document.getElementById('closeLogsBtn').addEventListener('click', () => {
-            this.hideLogsModal();
-        });
-
-        // 默认模式变更
+        // 默认模式
         document.getElementById('defaultMode').addEventListener('change', (e) => {
             this.configManager.updateDefaultMode(e.target.value);
         });
 
-        // 功耗列表按钮
-        document.getElementById('showPowerDataBtn').addEventListener('click', () => {
-            this.showPowerDataModal();
-        });
+        // 功耗
+        document.getElementById('showPowerDataBtn').addEventListener('click', () => this.showPowerDataModal());
+        document.getElementById('closePowerBtn').addEventListener('click', () => this.hidePowerDataModal());
 
-        document.querySelector('.close-power').addEventListener('click', () => {
-            this.hidePowerDataModal();
-        });
+        // 配置
+        document.getElementById('showConfigBtn').addEventListener('click', () => this.showConfigModal());
+        document.getElementById('cancelConfigBtn').addEventListener('click', () => this.hideConfigModal());
+        document.getElementById('saveConfigBtn').addEventListener('click', () => this.saveConfig());
 
-        document.getElementById('closePowerBtn').addEventListener('click', () => {
-            this.hidePowerDataModal();
-        });
+        // 主题切换
+        document.getElementById('themeToggle').addEventListener('click', () => this.toggleTheme());
 
-        // 点击模态框外部关闭
-        this.modal.addEventListener('click', (e) => {
-            if (e.target === this.modal) {
-                this.hideModal();
+        // data-close 按钮统一处理
+        this.modalOverlay.addEventListener('click', (e) => {
+            const closeBtn = e.target.closest('[data-close]');
+            if (closeBtn) {
+                this.hideAllModals();
+                return;
+            }
+            if (e.target === this.modalOverlay) {
+                this.hideAllModals();
             }
         });
 
-        // 搜索框输入事件
+        // ESC关闭
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') this.hideAllModals();
+        });
+
+        // 搜索
         const appSearch = document.getElementById('appSearch');
         if (appSearch) {
-            appSearch.addEventListener('input', (e) => {
-                this.searchApps(e.target.value);
-            });
+            appSearch.addEventListener('input', (e) => this.searchApps(e.target.value));
         }
 
-        // 刷新应用列表按钮
+        // 刷新应用列表
         this.refreshBtn = document.getElementById('refreshAppListBtn');
         if (this.refreshBtn) {
-            this.refreshBtn.addEventListener('click', () => {
-                this.refreshAppList();
-            });
+            this.refreshBtn.addEventListener('click', () => this.refreshAppList());
         }
 
-        // 为规则列表容器绑定事件委托
+        // 规则列表事件委托
         this.rulesList = document.getElementById('rulesList');
         if (this.rulesList) {
             this.rulesList.addEventListener('click', (e) => {
-                // 检查点击的是否是删除按钮
-                if (e.target.classList.contains('delete-rule')) {
-                    const appPackage = e.target.getAttribute('data-app-package');
-                    if (appPackage) {
-                        this.handleDeleteClick(appPackage, e.target);
-                    }
+                const btn = e.target.closest('.rule-del');
+                if (btn) {
+                    const pkg = btn.getAttribute('data-app-package');
+                    if (pkg) this.handleDeleteClick(pkg, btn);
                 }
             });
         }
-
-        // 配置页面事件
-        document.getElementById('showConfigBtn').addEventListener('click', () => {
-            this.showConfigModal();
-        });
-
-        document.querySelector('.close-config').addEventListener('click', () => {
-            this.hideConfigModal();
-        });
-
-        document.getElementById('cancelConfigBtn').addEventListener('click', () => {
-            this.hideConfigModal();
-        });
-
-        document.getElementById('saveConfigBtn').addEventListener('click', () => {
-            this.saveConfig();
-        });
-
     }
 
+    // ========== 主题 ==========
+    toggleTheme() {
+        const html = document.documentElement;
+        const current = html.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', next);
+        localStorage.setItem('bswitcher-theme', next);
+    }
 
-    // 显示日志模态框
+    // ========== 模态框 ==========
+    showOverlay() {
+        this.modalOverlay.classList.add('active');
+    }
+
+    hideOverlay() {
+        this.modalOverlay.classList.remove('active');
+    }
+
+    hideAllModals() {
+        this.modal.style.display = 'none';
+        this.logsModal.style.display = 'none';
+        this.powerModal.style.display = 'none';
+        this.configModal.style.display = 'none';
+        this.hideOverlay();
+    }
+
+    showModal() {
+        this.showOverlay();
+        this.modal.style.display = 'block';
+        const appSearch = document.getElementById('appSearch');
+        const modeSelect = document.getElementById('modeSelect');
+        const downFpsSelect = document.getElementById('downFpsSelect');
+        const upFpsSelect = document.getElementById('upFpsSelect');
+        const downFpsParent = downFpsSelect?.closest('.form-group');
+        const upFpsParent = upFpsSelect?.closest('.form-group');
+
+        if (appSearch) appSearch.value = '';
+        if (modeSelect) modeSelect.value = this.configManager.getConfig().defaultMode;
+        if (downFpsSelect) downFpsSelect.value = -1;
+        if (upFpsSelect) upFpsSelect.value = -1;
+
+        (async () => {
+            try {
+                const result = await this.socketClient.communicate({ target: 'config', mode: 'read' });
+                const show = result.dynamic_fps || false;
+                if (downFpsParent) downFpsParent.style.display = show ? '' : 'none';
+                if (upFpsParent) upFpsParent.style.display = show ? '' : 'none';
+            } catch {
+                if (downFpsParent) downFpsParent.style.display = 'none';
+                if (upFpsParent) upFpsParent.style.display = 'none';
+            }
+        })();
+
+        this.populateAppSelect();
+    }
+
+    hideModal() {
+        this.modal.style.display = 'none';
+        this.hideOverlay();
+    }
+
+    // ========== 日志 ==========
     async showLogsModal() {
+        this.showOverlay();
+        this.logsModal.style.display = 'block';
+        const logsContent = document.getElementById('logsContent');
+        if (logsContent) logsContent.innerHTML = '<div class="logs-loading">正在加载日志...</div>';
+
         try {
-            this.logsModal.style.display = 'block';
-            this.showLogsLoading();
-
-            // 加载日志
-            const logs = await this.loadLogs();
-            this.renderLogs(logs);
-
-            // 确保滚动到底部
-            setTimeout(() => {
-                this.scrollLogsToBottom();
-            }, 100);
-
+            const { exec } = await import('./ksu.js');
+            const command = `logcat -v time -d -s "BSwitcher" | sed -E 's/^[0-9]*-[0-9]* //; s/\\.[0-9]*//; s/\\/[^\\(]*\\([^)]*\\):/:/'`;
+            const result = await exec(command);
+            const logs = result.errno === 0 ? (result.stdout || '暂无日志') : (result.stderr || '获取日志失败');
+            if (logsContent) {
+                logsContent.textContent = logs;
+                logsContent.scrollTop = logsContent.scrollHeight;
+            }
         } catch (error) {
-            this.showLogsError('加载日志失败: ' + error.message);
+            if (logsContent) logsContent.innerHTML = `<div class="logs-error">加载日志失败: ${error.message}</div>`;
         }
     }
 
-    // 隐藏日志模态框
     hideLogsModal() {
-        if (this.logsModal) {
-            this.logsModal.style.display = 'none';
+        this.logsModal.style.display = 'none';
+        this.hideOverlay();
+    }
+
+    // ========== 功耗 ==========
+    async showPowerDataModal() {
+        this.showOverlay();
+        this.powerModal.style.display = 'block';
+        const powerList = document.getElementById('powerList');
+        const powerSummary = document.getElementById('powerSummary');
+        if (powerList) powerList.innerHTML = '<div class="logs-loading">正在加载功耗数据...</div>';
+        if (powerSummary) powerSummary.innerHTML = '<div class="logs-loading">正在计算统计...</div>';
+
+        try {
+            const request = { target: 'powerdata', mode: 'read' };
+            const powerData = await this.socketClient.communicate(request);
+            this.renderPowerData(powerData);
+        } catch (error) {
+            if (powerList) powerList.innerHTML = `<div class="logs-error">${error.message}</div>`;
+            if (powerSummary) powerSummary.innerHTML = `<div class="logs-error">${error.message}</div>`;
         }
     }
 
-    // 加载日志
-    async loadLogs() {
-        const { exec } = await import('./ksu.js');
-
-        // 更新日志命令
-        const command = `logcat -v time -d -s "BSwitcher" | sed -E 's/^[0-9]*-[0-9]* //; s/\\.[0-9]*//; s/\\/[^\\(]*\\([^)]*\\):/:/'`;
-
-        const result = await exec(command);
-
-        if (result.errno === 0) {
-            return result.stdout || '暂无日志';
-        } else {
-            throw new Error(result.stderr || '获取日志失败');
-        }
+    hidePowerDataModal() {
+        this.powerModal.style.display = 'none';
+        this.hideOverlay();
     }
 
-    // 显示日志加载状态
-    showLogsLoading() {
-        const logsContent = document.getElementById('logsContent');
-        if (logsContent) {
-            logsContent.innerHTML = '<div class="logs-loading">正在加载日志...</div>';
-        }
-    }
-
-    // 显示日志错误
-    showLogsError(message) {
-        const logsContent = document.getElementById('logsContent');
-        if (logsContent) {
-            logsContent.innerHTML = `<div class="logs-error">${message}</div>`;
-        }
-    }
-
-    // 渲染日志内容
-    renderLogs(logs) {
-        const logsContent = document.getElementById('logsContent');
-        if (!logsContent) return;
-
-        if (!logs) {
-            logsContent.textContent = '暂无日志';
+    renderPowerData(powerData) {
+        if (!powerData || !Array.isArray(powerData)) {
+            document.getElementById('powerList').innerHTML = '<div class="logs-error">无效数据格式</div>';
             return;
         }
+        const processed = powerData
+            .filter(item => item.name !== '_other_')
+            .map(item => ({
+                packageName: item.name,
+                appName: this.appLoader.getAppName(item.name),
+                powerJoules: parseFloat(item.power_joules) || 0,
+                timeSec: parseFloat(item.time_sec) || 0,
+                get powerWatt() { return this.timeSec > 0 ? this.powerJoules / this.timeSec : 0; }
+            }))
+            .filter(item => item.timeSec > 0)
+            .sort((a, b) => b.powerJoules - a.powerJoules)
+            .slice(0, 10);
 
-        // 直接显示原始日志内容
-        logsContent.textContent = logs;
-
-        // 滚动到底部
-        this.scrollLogsToBottom();
+        this.renderPowerSummary(processed);
+        this.renderPowerList(processed);
     }
 
-    // 滚动日志到底部
-    scrollLogsToBottom() {
-        const logsContent = document.getElementById('logsContent');
-        if (logsContent) {
-            logsContent.scrollTop = logsContent.scrollHeight;
+    renderPowerSummary(data) {
+        const el = document.getElementById('powerSummary');
+        if (!el) return;
+        const totalTime = data.reduce((s, i) => s + i.timeSec, 0);
+        const totalEnergy = data.reduce((s, i) => s + i.powerJoules, 0);
+        const avgPower = totalTime > 0 ? totalEnergy / totalTime : 0;
+        const fmtTime = (s) => `${Math.floor(s / 3600)}h${Math.floor((s % 3600) / 60)}m`;
+
+        el.innerHTML = `
+            <div class="power-summary-grid">
+                <div class="power-stat">
+                    <div class="power-stat-value">${totalEnergy.toFixed(1)}</div>
+                    <div class="power-stat-label">能耗 (J)</div>
+                </div>
+                <div class="power-stat">
+                    <div class="power-stat-value">${fmtTime(totalTime)}</div>
+                    <div class="power-stat-label">使用时间</div>
+                </div>
+                <div class="power-stat">
+                    <div class="power-stat-value">${avgPower.toFixed(1)} W</div>
+                    <div class="power-stat-label">平均功率</div>
+                </div>
+            </div>`;
+    }
+
+    renderPowerList(data) {
+        const el = document.getElementById('powerList');
+        if (!el) return;
+        if (data.length === 0) {
+            el.innerHTML = '<div class="logs-loading">暂无功耗数据</div>';
+            return;
         }
+        const fmtTime = (s) => {
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            return h > 0 ? `${h}h${m}m` : `${m}m`;
+        };
+        el.innerHTML = data.map((item, i) => `
+            <div class="power-item">
+                <div class="power-item-name">
+                    <div class="app-name">${i + 1}. ${item.appName}</div>
+                    <div class="pkg-name">${item.packageName}</div>
+                </div>
+                <div class="power-item-stats">
+                    <div class="watt">${item.powerWatt.toFixed(1)} W</div>
+                    <div class="detail">${item.powerJoules.toFixed(1)} J / ${fmtTime(item.timeSec)}</div>
+                </div>
+            </div>`).join('');
     }
 
-    // 删除按钮处理
+    // ========== 删除规则 ==========
     handleDeleteClick(appPackage, button) {
-        // 如果已经有待删除的规则
         if (this.pendingDeleteAppPackage === appPackage) {
-            // 第二次点击：确认删除
             this.executeDelete(appPackage);
             return;
         }
+        if (this.deleteTimeout) clearTimeout(this.deleteTimeout);
 
-        // 清除之前的超时
-        if (this.deleteTimeout) {
-            clearTimeout(this.deleteTimeout);
-        }
-
-        // 第一次点击：进入确认状态
         this.pendingDeleteAppPackage = appPackage;
+        button._origText = button.textContent;
+        button.textContent = '确认？';
+        button.classList.add('confirming');
 
-        // 保存原始文本和样式
-        const originalText = button.textContent;
-        const originalClass = button.className;
-
-        // 更新按钮状态
-        button.textContent = '确认删除？';
-        button.className = 'btn btn-warning delete-rule';
-        button.setAttribute('data-app-package', appPackage);
-
-        // 设置超时，5秒后恢复
         this.deleteTimeout = setTimeout(() => {
-            this.cancelDelete(button, originalText, originalClass);
-        }, 5000);
-
-        // 存储原始状态到按钮数据属性
-        button.setAttribute('data-original-text', originalText);
-        button.setAttribute('data-original-class', originalClass);
-    }
-
-    // 取消删除
-    cancelDelete(button, originalText, originalClass) {
-        if (button) {
-            button.textContent = originalText || '删除';
-            button.className = originalClass || 'btn btn-danger delete-rule';
-        }
-        this.pendingDeleteAppPackage = null;
-        this.deleteTimeout = null;
-    }
-
-    // 执行删除
-    async executeDelete(appPackage) {
-        // 清除超时
-        if (this.deleteTimeout) {
-            clearTimeout(this.deleteTimeout);
-            this.deleteTimeout = null;
-        }
-
-        this.showToast('正在删除规则...');
-
-        const rule = this.configManager.getConfig().rules.find(r => r.appPackage === appPackage);
-        if (!rule) {
-            this.showToast('错误: 未找到要删除的规则');
+            button.textContent = button._origText || '删除';
+            button.classList.remove('confirming');
             this.pendingDeleteAppPackage = null;
-            return;
-        }
+            this.deleteTimeout = null;
+        }, 5000);
+    }
 
+    async executeDelete(appPackage) {
+        if (this.deleteTimeout) { clearTimeout(this.deleteTimeout); this.deleteTimeout = null; }
+        this.showToast('正在删除规则...');
         try {
             await this.configManager.removeRule(appPackage);
-            const appName = this.appLoader.getAppName(appPackage);
-            this.showToast(`已删除规则: ${appName}`);
+            this.showToast(`已删除: ${this.appLoader.getAppName(appPackage)}`);
             this.renderRulesList();
         } catch (error) {
-            this.showToast('删除规则失败: ' + error.message);
+            this.showToast('删除失败: ' + error.message);
         } finally {
             this.pendingDeleteAppPackage = null;
         }
     }
 
-    // 功耗列表功能
-    async showPowerDataModal() {
-        try {
-            this.powerModal.style.display = 'block';
-            this.showPowerLoading();
-
-            // 加载功耗数据
-            const powerData = await this.loadPowerData();
-            this.renderPowerData(powerData);
-
-        } catch (error) {
-            this.showPowerError('加载功耗数据失败: ' + error.message);
-        }
-    }
-
-    // 隐藏功耗数据模态框
-    hidePowerDataModal() {
-        if (this.powerModal) {
-            this.powerModal.style.display = 'none';
-        }
-    }
-
-    // 加载功耗数据
-    async loadPowerData() {
-
-        const request = {
-            target: 'powerdata',
-            mode: 'read'
-        };
-
-        const result = await this.socketClient.communicate(request);
-
-        return result;
-
-    }
-
-    // 显示功耗加载状态
-    showPowerLoading() {
-        const powerList = document.getElementById('powerList');
-        const powerSummary = document.getElementById('powerSummary');
-
-        if (powerList) {
-            powerList.innerHTML = '<div class="power-loading">正在加载功耗数据...</div>';
-        }
-
-        if (powerSummary) {
-            powerSummary.innerHTML = '<div class="power-loading">正在计算统计信息...</div>';
-        }
-    }
-
-    // 显示功耗错误
-    showPowerError(message) {
-        const powerList = document.getElementById('powerList');
-        const powerSummary = document.getElementById('powerSummary');
-
-        if (powerList) {
-            powerList.innerHTML = `<div class="power-error">${message}</div>`;
-        }
-
-        if (powerSummary) {
-            powerSummary.innerHTML = `<div class="power-error">${message}</div>`;
-        }
-    }
-
-    // 渲染功耗数据
-    renderPowerData(powerData) {
-        if (!powerData || !Array.isArray(powerData)) {
-            this.showPowerError('无效的功耗数据格式');
-            return;
-        }
-
-        // 处理数据：计算功率、转换应用名称、排序
-        const processedData = this.processPowerData(powerData);
-
-        // 渲染总体统计
-        this.renderPowerSummary(processedData);
-
-        // 渲染应用列表
-        this.renderPowerList(processedData);
-    }
-
-    // 处理功耗数据
-    processPowerData(powerData) {
-        // 先过滤掉 _other_ 条目，用于排名显示
-        const filteredData = powerData.filter(item => item.name !== '_other_');
-
-        return filteredData
-            .map(item => {
-                const powerJoules = parseFloat(item.power_joules) || 0;
-                const timeSec = parseFloat(item.time_sec) || 0;
-                const powerWatt = timeSec > 0 ? powerJoules / timeSec : 0;
-
-                return {
-                    packageName: item.name,
-                    appName: this.appLoader.getAppName(item.name),
-                    powerJoules,
-                    timeSec,
-                    powerWatt
-                };
-            })
-            .filter(item => item.timeSec > 0) // 过滤掉时间为0的数据
-            .sort((a, b) => b.powerJoules - a.powerJoules) // 按能耗排序
-            .slice(0, 10); // 取前10名
-    }
-
-    // 渲染总体统计
-    renderPowerSummary(processedData) {
-        const powerSummary = document.getElementById('powerSummary');
-        if (!powerSummary) return;
-
-        // 计算总体统计
-        const totalTime = processedData.reduce((sum, item) => sum + item.timeSec, 0);
-        const totalEnergy = processedData.reduce((sum, item) => sum + item.powerJoules, 0);
-        const avgPower = totalTime > 0 ? totalEnergy / totalTime : 0;
-
-        // 格式化数值
-        const formatNumber = (num, decimals = 1) => num.toFixed(decimals);
-        const formatTime = (seconds) => {
-            const hours = Math.floor(seconds / 3600);
-            const minutes = Math.floor((seconds % 3600) / 60);
-            return `${hours}小时${minutes}分钟`;
-        };
-
-        powerSummary.innerHTML = `
-            <div class="power-summary-stats">
-                <div class="power-stat-item">
-                    <div class="power-stat-label">能耗 (焦耳)</div>
-                    <div class="power-stat-value">${formatNumber(totalEnergy)}</div>
-                </div>
-                <div class="power-stat-item">
-                    <div class="power-stat-label">使用时间</div>
-                    <div class="power-stat-value">${formatTime(totalTime)}</div>
-                </div>
-                <div class="power-stat-item">
-                    <div class="power-stat-label">平均功率 (瓦特)</div>
-                    <div class="power-stat-value">${formatNumber(avgPower)}</div>
-                </div>
-            </div>
-        `;
-    }
-
-    // 渲染功耗列表
-    renderPowerList(processedData) {
-        const powerList = document.getElementById('powerList');
-        if (!powerList) return;
-
-        if (processedData.length === 0) {
-            powerList.innerHTML = '<div class="power-loading">暂无功耗数据</div>';
-            return;
-        }
-
-        powerList.innerHTML = processedData.map((item, index) => `
-            <div class="power-item">
-                <div class="power-item-info">
-                    <div class="power-app-name" title="${item.appName}">${index + 1}. ${item.appName}</div>
-                    <div class="power-app-details">包名: ${item.packageName}</div>
-                </div>
-                <div class="power-app-stats">
-                    <div class="power-watt">${item.powerWatt.toFixed(1)} W</div>
-                    <div class="power-details">
-                        ${item.powerJoules.toFixed(1)} J / ${this.formatTimeShort(item.timeSec)}
-                    </div>
-                </div>
-            </div>
-        `).join('');
-    }
-
-    // 格式化时间
-    formatTimeShort(seconds) {
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-
-        if (hours > 0) {
-            return `${hours}h${minutes}m`;
-        } else {
-            return `${minutes}m`;
-        }
-    }
-
-    // 刷新应用列表
-    async refreshAppList() {
-        if (!this.refreshBtn) return;
-
-        // 禁用按钮并显示加载状态
-        this.setRefreshButtonState('loading');
-
-        try {
-            // 重新加载应用列表
-            await this.appLoader.reloadAppList();
-            this.allApps = this.appLoader.getAvailableApps();
-            this.populateAppSelect();
-
-            // 显示成功状态
-            this.setRefreshButtonState('success');
-            this.showToast('应用列表刷新成功');
-
-            // 2秒后恢复正常状态
-            setTimeout(() => {
-                this.setRefreshButtonState('normal');
-            }, 2000);
-
-        } catch (error) {
-
-            // 显示错误状态
-            this.setRefreshButtonState('error');
-            this.showToast('刷新应用列表失败: ' + error.message);
-
-            // 3秒后恢复正常状态
-            setTimeout(() => {
-                this.setRefreshButtonState('normal');
-            }, 3000);
-        }
-    }
-
-    // 设置刷新按钮状态
-    setRefreshButtonState(state) {
-        if (!this.refreshBtn) return;
-
-        // 移除所有状态类
-        this.refreshBtn.classList.remove('btn-loading', 'btn-success', 'btn-error');
-        this.refreshBtn.disabled = false;
-
-        switch (state) {
-            case 'loading':
-                this.refreshBtn.classList.add('btn-loading');
-                this.refreshBtn.disabled = true;
-                break;
-            case 'success':
-                this.refreshBtn.classList.add('btn-success');
-                break;
-            case 'error':
-                this.refreshBtn.classList.add('btn-error');
-                break;
-            case 'normal':
-            default:
-                // 恢复正常状态
-                break;
-        }
-    }
-
-    // 显示模态框
-    async showModal() {
-        if (this.modal) {
-
-            // 重置表单
-            const appSearch = document.getElementById('appSearch');
-            const appSelect = document.getElementById('appSelect');
-            const modeSelect = document.getElementById('modeSelect');
-            const downFpsSelect = document.getElementById('downFpsSelect');
-            const upFpsSelect = document.getElementById('upFpsSelect');
-            const downFpsLabel = document.querySelector('label[for="downFpsSelect"]');
-            const upFpsLabel = document.querySelector('label[for="upFpsSelect"]');
-
-            if (appSearch) appSearch.value = '';
-            if (appSelect) appSelect.value = '';
-            if (modeSelect) modeSelect.value = this.configManager.getConfig().defaultMode;
-
-            // 设置整数值，而不是字符串
-            if (downFpsSelect) downFpsSelect.value = -1;
-            if (upFpsSelect) upFpsSelect.value = -1;
-
-            try {
-                const request = {
-                    target: 'config',
-                    mode: 'read'
-                };
-                const result = await this.socketClient.communicate(request);
-                const isDynamicFpsEnabled = result.dynamic_fps || false;
-
-                const shouldShowFpsControls = isDynamicFpsEnabled;  //在未启用动态fps时不显示选择框
-
-                if (downFpsSelect) downFpsSelect.style.display = shouldShowFpsControls ? 'block' : 'none';
-                if (upFpsSelect) upFpsSelect.style.display = shouldShowFpsControls ? 'block' : 'none';
-                if (downFpsLabel) downFpsLabel.style.display = shouldShowFpsControls ? 'block' : 'none';
-                if (upFpsLabel) upFpsLabel.style.display = shouldShowFpsControls ? 'block' : 'none';
-
-            } catch (error) {
-                if (downFpsSelect) downFpsSelect.style.display = 'none';
-                if (upFpsSelect) upFpsSelect.style.display = 'none';
-                if (downFpsLabel) downFpsLabel.style.display = 'none';
-                if (upFpsLabel) upFpsLabel.style.display = 'none';
-            }
-            this.modal.style.display = 'block';
-            // 显示所有应用
-            this.populateAppSelect();
-        }
-    }
-
-    // 隐藏模态框
-    hideModal() {
-        if (this.modal) {
-            this.modal.style.display = 'none';
-        }
-    }
-
-    // 填充应用选择框
+    // ========== 应用选择 ==========
     populateAppSelect(searchTerm = '') {
         const appSelect = document.getElementById('appSelect');
         const appCount = document.getElementById('appCount');
-
         if (!appSelect || !appCount) return;
 
-        let availableApps = this.allApps;
-
-        // 如果有搜索词，进行过滤
-        if (searchTerm) {
-            availableApps = this.appLoader.searchApps(searchTerm);
-        }
-
+        let apps = searchTerm ? this.appLoader.searchApps(searchTerm) : this.allApps;
         appSelect.innerHTML = '';
 
-        if (availableApps.length === 0) {
-            const option = document.createElement('option');
-            option.value = '';
-            option.textContent = searchTerm ? '未找到匹配的应用' : '暂无应用数据';
-            option.disabled = true;
-            appSelect.appendChild(option);
+        if (apps.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = searchTerm ? '未找到匹配的应用' : '暂无应用数据';
+            opt.disabled = true;
+            appSelect.appendChild(opt);
             appCount.textContent = searchTerm ? '未找到匹配的应用' : '暂无应用数据';
             return;
         }
 
-        let enabledCount = 0;
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = '请选择应用';
+        defaultOpt.disabled = true;
+        defaultOpt.selected = true;
+        appSelect.appendChild(defaultOpt);
 
-        // 添加默认提示选项
-        const defaultOption = document.createElement('option');
-        defaultOption.value = '';
-        defaultOption.textContent = '请选择应用';
-        defaultOption.disabled = true;
-        defaultOption.selected = true;
-        appSelect.appendChild(defaultOption);
-
-        availableApps.forEach(app => {
-            // 检查是否已配置该应用
+        apps.forEach(app => {
             const hasRule = this.configManager.hasRuleForApp(app.packageName);
+            const opt = document.createElement('option');
+            opt.value = app.packageName;
+            opt.textContent = hasRule ? `${app.name} - 已配置` : app.name;
+            appSelect.appendChild(opt);
+        });
 
-            const option = document.createElement('option');
-            option.value = app.packageName;
+        appSelect.onchange = (e) => this.onAppSelectChange(e.target.value);
+        appCount.textContent = searchTerm ? `搜索到 ${apps.length} 个应用` : `共 ${apps.length} 个应用`;
+    }
 
-            // 简化显示文本 - 显示已配置状态但不禁用
-            const displayText = hasRule
-                ? `${app.name} - 已配置`
-                : app.name;
+    searchApps(term) { this.populateAppSelect(term); }
 
-            option.textContent = displayText;
-            // 不再禁用已有配置的应用
-            appSelect.appendChild(option);
-
-            if (!hasRule) {
-                enabledCount++;
+    async onAppSelectChange(pkg) {
+        if (!pkg) return;
+        if (this.configManager.hasRuleForApp(pkg)) {
+            const config = this.configManager.getConfig();
+            const rule = config.rules.find(r => r.appPackage === pkg);
+            if (rule) {
+                const modeSelect = document.getElementById('modeSelect');
+                const downFpsSelect = document.getElementById('downFpsSelect');
+                const upFpsSelect = document.getElementById('upFpsSelect');
+                if (modeSelect) modeSelect.value = rule.mode || config.defaultMode;
+                if (downFpsSelect) downFpsSelect.value = rule.down_fps ?? -1;
+                if (upFpsSelect) upFpsSelect.value = rule.up_fps ?? -1;
             }
-        });
-
-        // 绑定应用选择变化事件
-        appSelect.addEventListener('change', (e) => {
-            this.onAppSelectChange(e.target.value);
-        });
-
-        // 更新计数显示 - 不再显示可用数量，因为所有应用都可用
-        let countText = `共 ${availableApps.length} 个应用`;
-
-        if (searchTerm) {
-            countText = `搜索到 ${availableApps.length} 个应用`;
-        }
-
-        appCount.textContent = countText;
-    }
-
-    // 搜索应用
-    searchApps(searchTerm) {
-        this.populateAppSelect(searchTerm);
-    }
-
-    // 应用选择变化事件处理
-    async onAppSelectChange(selectedPackage) {
-        if (!selectedPackage) {
-            return; // 没有选择任何应用
-        }
-
-        // 检查是否已存在该应用的规则
-        if (this.configManager.hasRuleForApp(selectedPackage)) {
-            await this.loadExistingRule(selectedPackage);
         } else {
-            this.resetFormToDefaults();
-        }
-    }
-
-    // 加载现有规则配置
-    async loadExistingRule(appPackage) {
-        const config = this.configManager.getConfig();
-        const existingRule = config.rules.find(rule => rule.appPackage === appPackage);
-        
-        if (existingRule) {
+            const config = this.configManager.getConfig();
             const modeSelect = document.getElementById('modeSelect');
             const downFpsSelect = document.getElementById('downFpsSelect');
             const upFpsSelect = document.getElementById('upFpsSelect');
-
-            if (modeSelect) modeSelect.value = existingRule.mode || config.defaultMode;
-            if (downFpsSelect) downFpsSelect.value = existingRule.down_fps !== undefined ? existingRule.down_fps : -1;
-            if (upFpsSelect) upFpsSelect.value = existingRule.up_fps !== undefined ? existingRule.up_fps : -1;
+            if (modeSelect) modeSelect.value = config.defaultMode;
+            if (downFpsSelect) downFpsSelect.value = -1;
+            if (upFpsSelect) upFpsSelect.value = -1;
         }
     }
 
-    // 重置表单为默认值
-    resetFormToDefaults() {
-        const modeSelect = document.getElementById('modeSelect');
-        const downFpsSelect = document.getElementById('downFpsSelect');
-        const upFpsSelect = document.getElementById('upFpsSelect');
-        const config = this.configManager.getConfig();
-
-        if (modeSelect) modeSelect.value = config.defaultMode;
-        if (downFpsSelect) downFpsSelect.value = -1;
-        if (upFpsSelect) upFpsSelect.value = -1;
+    // ========== 刷新列表 ==========
+    async refreshAppList() {
+        if (!this.refreshBtn) return;
+        this.setRefreshButtonState('loading');
+        try {
+            await this.appLoader.reloadAppList();
+            this.allApps = this.appLoader.getAvailableApps();
+            this.populateAppSelect();
+            this.setRefreshButtonState('success');
+            this.showToast('应用列表刷新成功');
+            setTimeout(() => this.setRefreshButtonState('normal'), 2000);
+        } catch (error) {
+            this.setRefreshButtonState('error');
+            this.showToast('刷新失败: ' + error.message);
+            setTimeout(() => this.setRefreshButtonState('normal'), 3000);
+        }
     }
 
-    // 填充模式选择框
+    setRefreshButtonState(state) {
+        if (!this.refreshBtn) return;
+        this.refreshBtn.classList.remove('btn-loading', 'btn-success', 'btn-error');
+        this.refreshBtn.disabled = false;
+        if (state === 'loading') { this.refreshBtn.classList.add('btn-loading'); this.refreshBtn.disabled = true; }
+        else if (state === 'success') this.refreshBtn.classList.add('btn-success');
+        else if (state === 'error') this.refreshBtn.classList.add('btn-error');
+    }
+
+    // ========== 模式选择 ==========
     populateModeSelects() {
         const defaultModeSelect = document.getElementById('defaultMode');
         const modeSelect = document.getElementById('modeSelect');
         const downFpsSelect = document.getElementById('downFpsSelect');
         const upFpsSelect = document.getElementById('upFpsSelect');
-
         if (!defaultModeSelect || !modeSelect || !downFpsSelect || !upFpsSelect) return;
 
-        const availableModes = this.configManager.getAvailableModes();
-
-        // 填充模式选择框
-        [defaultModeSelect, modeSelect].forEach(select => {
-            select.innerHTML = '';
-            availableModes.forEach(mode => {
-                const option = document.createElement('option');
-                option.value = mode;
-                option.textContent = mode;
-                select.appendChild(option);
+        const modes = this.configManager.getAvailableModes();
+        [defaultModeSelect, modeSelect].forEach(sel => {
+            sel.innerHTML = '';
+            modes.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m; opt.textContent = m;
+                sel.appendChild(opt);
             });
         });
 
-        // 填充FPS选择框
-        [downFpsSelect, upFpsSelect].forEach(select => {
-            select.innerHTML = '';
+        [downFpsSelect, upFpsSelect].forEach(sel => {
+            sel.innerHTML = '';
             this.availableFps.forEach(fps => {
-                const option = document.createElement('option');
-                option.value = fps; // 这里fps应该是数字，不是字符串
-                option.textContent = fps === -1 ? '默认' : `${fps} FPS`;
-                select.appendChild(option);
+                const opt = document.createElement('option');
+                opt.value = fps;
+                opt.textContent = fps === -1 ? '默认' : `${fps} FPS`;
+                sel.appendChild(opt);
             });
         });
 
-        // 设置默认模式当前值
         const config = this.configManager.getConfig();
         defaultModeSelect.value = config.defaultMode;
-
-        // 设置默认FPS值
         downFpsSelect.value = -1;
         upFpsSelect.value = -1;
     }
 
-    // 渲染默认模式
     renderDefaultMode() {
-        const defaultModeSelect = document.getElementById('defaultMode');
-        if (defaultModeSelect) {
-            const config = this.configManager.getConfig();
-            defaultModeSelect.value = config.defaultMode;
-        }
+        const sel = document.getElementById('defaultMode');
+        if (sel) sel.value = this.configManager.getConfig().defaultMode;
     }
 
-    // 渲染规则列表
+    // ========== 规则列表 ==========
     renderRulesList() {
-        const rulesList = document.getElementById('rulesList');
-        if (!rulesList) return;
-
+        const el = document.getElementById('rulesList');
+        if (!el) return;
         const config = this.configManager.getConfig();
 
         if (config.rules.length === 0) {
-            rulesList.innerHTML = '<div class="empty-state">暂无规则，点击"添加规则"开始配置</div>';
+            el.innerHTML = '<div class="rules-empty">// 暂无规则，点击"+ 添加"开始配置</div>';
+            this.pendingDeleteAppPackage = null;
+            if (this.deleteTimeout) { clearTimeout(this.deleteTimeout); this.deleteTimeout = null; }
             return;
         }
 
-        rulesList.innerHTML = config.rules.map(rule => {
+        el.innerHTML = config.rules.map(rule => {
             const appName = this.appLoader.getAppName(rule.appPackage);
-            const modeName = rule.mode;
-
-            // 格式化FPS显示
-            const formatFps = (fps) => fps === -1 ? '默认' : `${fps}`;
-            const downFpsText = rule.down_fps !== undefined ? formatFps(rule.down_fps) : '默认';
-            const upFpsText = rule.up_fps !== undefined ? formatFps(rule.up_fps) : '默认';
-
-            let detailsContent;
-            if (downFpsText === '默认' && upFpsText === '默认') {
-                detailsContent = `模式: ${modeName}`;   //都为默认时不显示
-            } else {
-                detailsContent = `模式: ${modeName} | FPS: ${downFpsText} - ${upFpsText}`;
-            }
+            const fmtFps = (fps) => fps === -1 ? '默认' : `${fps}`;
+            const down = fmtFps(rule.down_fps ?? -1);
+            const up = fmtFps(rule.up_fps ?? -1);
+            const detail = (down === '默认' && up === '默认')
+                ? `<span class="mode-tag">${rule.mode}</span>`
+                : `<span class="mode-tag">${rule.mode}</span> · FPS ${down} → ${up}`;
 
             return `
-            <div class="rule-item">
-                <div class="rule-header">
-                    <div class="rule-name-container">
-                        <div class="rule-name" title="${appName}">${appName}</div>
-                    </div>
-                    <div class="rule-actions">
-                        <button class="btn btn-danger delete-rule" data-app-package="${rule.appPackage}">删除</button>
-                    </div>
+            <div class="rule-row">
+                <div class="rule-info">
+                    <span class="rule-app" title="${appName}">${appName}</span>
+                    <span class="rule-detail">${detail}</span>
                 </div>
-                <div class="rule-details" title="${detailsContent}">
-                    ${detailsContent}
-                </div>
-            </div>
-            `;
+                <button class="rule-del" data-app-package="${rule.appPackage}">删除</button>
+            </div>`;
         }).join('');
 
-        // 重置删除状态
         this.pendingDeleteAppPackage = null;
-        if (this.deleteTimeout) {
-            clearTimeout(this.deleteTimeout);
-            this.deleteTimeout = null;
-        }
+        if (this.deleteTimeout) { clearTimeout(this.deleteTimeout); this.deleteTimeout = null; }
     }
 
-    // 保存规则
+    // ========== 保存规则 ==========
     async saveRule() {
         const appSelect = document.getElementById('appSelect');
         const modeSelect = document.getElementById('modeSelect');
         const downFpsSelect = document.getElementById('downFpsSelect');
         const upFpsSelect = document.getElementById('upFpsSelect');
-
         if (!appSelect || !modeSelect || !downFpsSelect || !upFpsSelect) return;
 
         const appPackage = appSelect.value;
         const mode = modeSelect.value;
-
-        // 确保FPS值为整数类型
         const downFps = downFpsSelect.value === '' ? -1 : parseInt(downFpsSelect.value);
         const upFps = upFpsSelect.value === '' ? -1 : parseInt(upFpsSelect.value);
 
-        if (!appPackage) {
-            this.showToast('请选择应用');
-            return;
-        }
+        if (!appPackage) { this.showToast('请选择应用'); return; }
 
-        // 检查是否已存在该应用的规则，存在则先删除再添加（覆盖）
         if (this.configManager.hasRuleForApp(appPackage)) {
             await this.configManager.removeRule(appPackage);
         }
@@ -915,28 +563,26 @@ export class UIManager {
         }
     }
 
-    // 配置页面相关方法
+    // ========== 配置 ==========
     async showConfigModal() {
         try {
             await this.infoManager.loadConfig();
             this.renderConfigForm();
+            this.showOverlay();
             this.configModal.style.display = 'block';
         } catch (error) {
             this.showToast('加载配置失败: ' + error.message);
         }
     }
 
-    // 隐藏配置模态框
     hideConfigModal() {
-        if (this.configModal) {
-            this.configModal.style.display = 'none';
-        }
+        this.configModal.style.display = 'none';
+        this.hideOverlay();
     }
 
-    // 保存配置
     async saveConfig() {
         try {
-            const formData = this.getConfigFormData();
+            const formData = this.getCurrentConfigFormData();
             await this.infoManager.saveConfig(formData);
             this.showToast('配置保存成功');
             this.hideConfigModal();
@@ -945,317 +591,164 @@ export class UIManager {
         }
     }
 
-    // 渲染配置表单
     renderConfigForm() {
-        const configForm = document.getElementById('configForm');
-        if (!configForm) return;
-
+        const form = document.getElementById('configForm');
+        if (!form) return;
         const config = this.infoManager.getConfig();
 
-        // 按分类渲染
-        configForm.innerHTML = Object.entries(this.configCategories).map(([category, fields]) => {
-            const categoryFields = fields.map(field => this.renderConfigField(field, config)).join('');
-
-            return `
-                <div class="config-group">
-                    <h4>${category}</h4>
-                    ${categoryFields}
-                </div>
-            `;
+        form.innerHTML = Object.entries(this.configCategories).map(([cat, fields]) => {
+            const items = fields.map(f => this.renderConfigField(f, config)).join('');
+            return `<div class="config-group"><div class="config-group-title">${cat}</div>${items}</div>`;
         }).join('');
 
-        // 绑定字段依赖关系的事件
         this.bindFieldDependencies();
     }
-
-    // 渲染单个配置字段
 
     renderConfigField(field, config) {
         const value = config[field.key] !== undefined ? config[field.key] : '';
         const isDisabled = this.isFieldDisabled(field, config);
         const options = this.getFieldOptions(field, config);
-
-        let fieldHtml = '';
+        let inputHtml = '';
 
         switch (field.type) {
             case 'number':
-                fieldHtml = `
-                    <input type="number" 
-                        name="${field.key}" 
-                        value="${value}" 
-                        ${field.min ? `min="${field.min}"` : ''}
-                        ${field.max ? `max="${field.max}"` : ''}
-                        ${isDisabled ? 'disabled' : ''}>
-                `;
+                inputHtml = `<input type="number" class="input-text" name="${field.key}" value="${value}" ${field.min ? `min="${field.min}"` : ''} ${field.max ? `max="${field.max}"` : ''} ${isDisabled ? 'disabled' : ''}>`;
                 break;
-
             case 'checkbox':
-                fieldHtml = `
-                    <input type="checkbox" 
-                        name="${field.key}" 
-                        ${value ? 'checked' : ''}
-                        ${isDisabled ? 'disabled' : ''}>
-                `;
+                inputHtml = `<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="${field.key}" ${value ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}> <span style="font-size:12px;color:var(--text-secondary)">${field.description}</span></label>`;
                 break;
-
             case 'select':
-                const optionHtml = options.map(opt =>
-                    `<option value="${opt.value}" ${value === opt.value ? 'selected' : ''}>${opt.label}</option>`
-                ).join('');
-                fieldHtml = `
-                    <select name="${field.key}" ${isDisabled ? 'disabled' : ''}>
-                        ${optionHtml}
-                    </select>
-                `;
+                inputHtml = `<select class="input-select" name="${field.key}" ${isDisabled ? 'disabled' : ''}>${options.map(o => `<option value="${o.value}" ${value === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}</select>`;
                 break;
-
             case 'button':
-                fieldHtml = `
-                    <button type="button" 
-                            class="btn btn-secondary btn-small" 
-                            data-key="${field.key}"
-                            ${isDisabled ? 'disabled' : ''}>
-                        ${field.label}
-                    </button>
-                `;
+                inputHtml = `<button type="button" class="btn btn-ghost config-btn" data-key="${field.key}" ${isDisabled ? 'disabled' : ''}>${field.label}</button>`;
                 break;
-
-            default: // text
-                fieldHtml = `
-                    <input type="text" 
-                        name="${field.key}" 
-                        value="${value}" 
-                        ${isDisabled ? 'disabled' : ''}>
-                `;
+            default:
+                inputHtml = `<input type="text" class="input-text" name="${field.key}" value="${value}" ${isDisabled ? 'disabled' : ''}>`;
         }
 
-        return `
-            <div class="config-item ${isDisabled ? 'disabled' : ''}">
-                <label>${field.type === 'button' ? '' : field.label}</label>
-                ${fieldHtml}
-                <div class="config-description">${field.description}</div>
-            </div>
-        `;
+        const labelHtml = field.type === 'button' || field.type === 'checkbox' ? '' : `<label>${field.label}</label>`;
+        const descHtml = field.type === 'checkbox' ? '' : `<div class="config-desc">${field.description}</div>`;
+
+        return `<div class="config-item ${isDisabled ? 'disabled' : ''}">${labelHtml}${inputHtml}${descHtml}</div>`;
     }
 
-    // 按分类分组配置字段
     groupConfigByCategory() {
-        const categories = {};
-        this.configFields.forEach(field => {
-            const category = field.category || '其他设置';
-            if (!categories[category]) {
-                categories[category] = [];
-            }
-            categories[category].push(field);
+        const cats = {};
+        this.configFields.forEach(f => {
+            const cat = f.category || '其他设置';
+            if (!cats[cat]) cats[cat] = [];
+            cats[cat].push(f);
         });
-        return categories;
+        return cats;
     }
 
-    // 获取字段的选项列表
-    getFieldOptions(field, currentConfig) {
+    getFieldOptions(field) {
         if (typeof field.options === 'string') {
-            // 动态选项
             switch (field.options) {
-                case 'availableModes':
-                    return pathConfig.getAvailableModes().map(mode => ({
-                        value: mode,
-                        label: mode
-                    }));
-                case 'availableFps':
-                    return this.availableFps.map(fps => ({
-                        value: fps,
-                        label: fps === -1 ? '默认' : `${fps} FPS`
-                    }));
-                default:
-                    return [];
+                case 'availableModes': return pathConfig.getAvailableModes().map(m => ({ value: m, label: m }));
+                case 'availableFps': return this.availableFps.map(f => ({ value: f, label: f === -1 ? '默认' : `${f} FPS` }));
+                default: return [];
             }
         }
         return field.options || [];
     }
 
-    // 检查字段是否应该禁用
-    isFieldDisabled(field, currentConfig) {
+    isFieldDisabled(field, config) {
         if (!field.dependsOn) return false;
-
-        const { field: dependentField, condition } = field.dependsOn;
-
-        if (currentConfig[dependentField] === undefined) {  // 忽略不存在的规则
-            return false;
-        }
-
-        const dependentValue = currentConfig[dependentField];
-
-        // 如果依赖字段的值不等于条件值，则禁用此字段
-        return dependentValue !== condition;
+        const { field: depField, condition } = field.dependsOn;
+        if (config[depField] === undefined) return false;
+        return config[depField] !== condition;
     }
 
-    // 绑定字段依赖关系事件
     bindFieldDependencies() {
-        const configForm = document.getElementById('configForm');
-        if (!configForm) return;
-
-        // 为所有有affects属性的字段绑定change事件
+        const form = document.getElementById('configForm');
+        if (!form) return;
         this.configFields.forEach(field => {
-            if (field.affects && field.affects.length > 0) {
-                const input = configForm.querySelector(`[name="${field.key}"]`);
-                if (input) {
-                    input.addEventListener('change', () => {
-                        this.updateDependentFields();
-                    });
-                }
+            if (field.affects?.length > 0) {
+                const input = form.querySelector(`[name="${field.key}"]`);
+                if (input) input.addEventListener('change', () => this.updateDependentFields());
             }
-        });
-
-        // 为所有按钮类型字段绑定点击事件
-        this.configFields.forEach(field => {
             if (field.type === 'button') {
-                const button = configForm.querySelector(`button[data-key="${field.key}"]`);
-                if (button) {
-                    button.addEventListener('click', (event) => {
-                        this.handleConfigButtonClick(field, event);
-                    });
-                }
+                const btn = form.querySelector(`button[data-key="${field.key}"]`);
+                if (btn) btn.addEventListener('click', (e) => this.handleConfigButtonClick(field, e));
             }
         });
     }
 
-    // 更新依赖字段的状态
     updateDependentFields() {
         const config = this.getCurrentConfigFormData();
-
         this.configFields.forEach(field => {
             if (field.dependsOn) {
                 const input = document.querySelector(`[name="${field.key}"]`);
                 const container = input?.closest('.config-item');
-
                 if (input && container) {
-                    const isDisabled = this.isFieldDisabled(field, config);
-
-                    input.disabled = isDisabled;
-                    if (isDisabled) {
-                        container.classList.add('disabled');
-                    } else {
-                        container.classList.remove('disabled');
-                    }
+                    const dis = this.isFieldDisabled(field, config);
+                    input.disabled = dis;
+                    container.classList.toggle('disabled', dis);
                 }
             }
         });
     }
 
-    // 处理配置按钮点击
     async handleConfigButtonClick(field, event) {
         const button = event.target;
         const key = field.key;
+        const needConfirm = field.require_confirmation !== false;
 
-        // 检查是否需要确认
-        const requireConfirmation = field.require_confirmation !== false; // 默认为true
-
-        // 如果按钮已经在确认状态，直接执行
         if (button.classList.contains('confirming')) {
-            await this.executeButtonAction(key, button);
+            this.cancelConfirmation(button);
+            try {
+                const result = await this.socketClient.communicate({ target: 'command', mode: 'write', data: [key] });
+                if (result?.message?.trim()) this.showToast(result.message);
+            } catch (error) {
+                this.showToast('Error: ' + error.message);
+            }
             return;
         }
 
-        // 如果需要确认
-        if (requireConfirmation) {
-            this.startConfirmationMode(button, field);
+        if (needConfirm) {
+            button._origText = button.textContent;
+            button._origClass = button.className;
+            button.classList.remove('btn-ghost');
+            button.classList.add('btn-accent', 'confirming');
+            button.textContent = '确认？';
+            button._confirmTimeout = setTimeout(() => this.cancelConfirmation(button), 5000);
         } else {
-            // 不需要确认，直接执行
-            await this.executeButtonAction(key, button);
-        }
-    }
-
-    // 启动确认模式
-    startConfirmationMode(button, field) {
-        // 保存原始状态
-        button._originalText = button.textContent;
-        button._originalClass = button.className;
-
-        // 切换到确认状态
-        button.classList.remove('btn-secondary');
-        button.classList.add('btn-secondary-warning', 'confirming');
-        button.textContent = '确认？';
-
-        // 设置超时恢复
-        button._confirmationTimeout = setTimeout(() => {
-            this.cancelConfirmation(button);
-        }, 5000);
-    }
-
-    // 取消确认模式
-    cancelConfirmation(button) {
-        if (button._originalClass) {
-            button.className = button._originalClass;
-        }
-        if (button._originalText) {
-            button.textContent = button._originalText;
-        }
-        button.classList.remove('confirming');
-
-        if (button._confirmationTimeout) {
-            clearTimeout(button._confirmationTimeout);
-            button._confirmationTimeout = null;
-        }
-    }
-
-    // 执行按钮动作
-    async executeButtonAction(key, button) {
-        this.cancelConfirmation(button);    //恢复状态
-
-        try {
-            const request = {
-                target: 'command',
-                mode: 'write',
-                data: [key]
-            };
-
-            const result = await this.socketClient.communicate(request);
-            if (result?.message && result.message.trim() !== '') {
-                this.showToast(result.message);
+            try {
+                const result = await this.socketClient.communicate({ target: 'command', mode: 'write', data: [key] });
+                if (result?.message?.trim()) this.showToast(result.message);
+            } catch (error) {
+                this.showToast('Error: ' + error.message);
             }
-        } catch (error) {
-            this.showToast('Unknown error: ' + error.message);
         }
     }
 
-    // 获取当前表单数据
+    cancelConfirmation(button) {
+        if (button._origClass) button.className = button._origClass;
+        if (button._origText) button.textContent = button._origText;
+        button.classList.remove('confirming');
+        if (button._confirmTimeout) { clearTimeout(button._confirmTimeout); button._confirmTimeout = null; }
+    }
+
     getCurrentConfigFormData() {
         const form = document.getElementById('configForm');
-        // 排除按钮类型的输入元素
         const inputs = form.querySelectorAll('input:not([type="button"]), select');
         const config = {};
-
         inputs.forEach(input => {
-            if (input.type === 'checkbox') {
-                config[input.name] = input.checked;
-            } else if (input.type === 'number') {
-                config[input.name] = parseInt(input.value) || 0;
-            } else {
-                config[input.name] = input.value;
-            }
+            if (input.type === 'checkbox') config[input.name] = input.checked;
+            else if (input.type === 'number') config[input.name] = parseInt(input.value) || 0;
+            else config[input.name] = input.value;
         });
-
         return config;
     }
 
-    // 获取配置表单数据
-    getConfigFormData() {
-        return this.getCurrentConfigFormData();
-    }
-
-
-    // 显示Toast提示
+    // ========== Toast ==========
     async showToast(message) {
         try {
             const { toast } = await import('./ksu.js');
-            if (typeof ksu !== 'undefined') {
-                toast(message);
-            } else {
-                // 在网页环境中使用alert作为备用
-                alert(message);
-            }
-        } catch (error) {
-            alert(message); // 最终备用方案
-        }
+            if (typeof ksu !== 'undefined') toast(message);
+            else alert(message);
+        } catch { alert(message); }
     }
 }

@@ -3,44 +3,36 @@ import { AppLoader } from './appLoader.js';
 import { ConfigManager } from './configManager.js';
 import { UIManager } from './uiManager.js';
 
+// 初始化主题
+function initTheme() {
+    const saved = localStorage.getItem('bswitcher-theme');
+    if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+    } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+        document.documentElement.setAttribute('data-theme', 'light');
+    }
+}
+
 // 初始化应用
 async function initApp() {
+    initTheme();
+
     try {
-        await pathConfig.load();    //虽然名字还叫路径配置，但实际上只有模式列表。
-                                    //“历史遗留问题”，没改纯粹是懒
-
-        // 初始化应用加载器
+        await pathConfig.load();
         const appLoader = new AppLoader();
-
-        // 加载应用列表
         await appLoader.loadAppList();
-
-        // 初始化配置管理器
         const configManager = new ConfigManager(appLoader);
         await configManager.init();
-
-        // 初始化UI管理器
         const uiManager = new UIManager(configManager, appLoader);
         await uiManager.init();
 
-        window.app = {
-            pathConfig,
-            appLoader,
-            configManager,
-            uiManager
-        };
-
+        window.app = { pathConfig, appLoader, configManager, uiManager };
     } catch (error) {
         const rulesList = document.getElementById('rulesList');
         if (rulesList) {
-            rulesList.innerHTML = `
-            <div class="empty-state" style="color: #e74c3c;">
-            初始化失败: ${error.message}<br>
-            </div>
-            `;
+            rulesList.innerHTML = `<div class="rules-empty" style="color:var(--danger)">初始化失败: ${error.message}</div>`;
         }
     }
 }
 
-// 启动应用
 initApp();
