@@ -33,6 +33,8 @@ async function initApp() {
             rulesList.innerHTML = `<div class="rules-empty" style="color:var(--danger)">初始化失败: ${error.message}</div>`;
         }
     }
+
+    document.querySelectorAll('.card').forEach(c => c.classList.add('loaded'));
 }
 
 initApp();

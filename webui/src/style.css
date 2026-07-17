@@ -3,6 +3,29 @@
    大面积板块 + 直角 + 相近色伪半透明
    ============================================================ */
 
+/* ===== 入场动画 ===== */
+.app-nav {
+  animation: slideDown 0.3s ease both;
+}
+
+.card {
+  opacity: 0;
+}
+
+.card.loaded {
+  animation: fadeUp 0.3s ease both;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 :root {
   --font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'SF Mono', 'Menlo', 'Consolas', monospace;
   --radius: 0px;
@@ -77,6 +100,7 @@
 html {
   font-size: 15px;
   -webkit-text-size-adjust: 100%;
+  background: #0a0a0a;
 }
 
 body {
@@ -85,7 +109,7 @@ body {
   color: var(--text-primary);
   line-height: 1.6;
   min-height: 100vh;
-  transition: background var(--transition), color var(--transition);
+  transition: color var(--transition);
 }
 
 /* ===== Navigation ===== */
