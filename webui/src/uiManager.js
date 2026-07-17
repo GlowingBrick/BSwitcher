@@ -502,13 +502,15 @@ export class UIManager {
     // ========== 应用选择器弹窗 ==========
     showAppPicker() {
         this.appPickerModal.style.display = 'flex';
+        requestAnimationFrame(() => { this.appPickerModal.style.opacity = '1'; });
         this.renderAppPickerList('');
         const searchInput = document.getElementById('appPickerSearch');
         if (searchInput) { searchInput.value = ''; setTimeout(() => searchInput.focus(), 100); }
     }
 
     hideAppPicker() {
-        this.appPickerModal.style.display = 'none';
+        this.appPickerModal.style.opacity = '0';
+        setTimeout(() => { this.appPickerModal.style.display = 'none'; }, 200);
     }
 
     renderAppPickerList(filter = '') {
@@ -615,8 +617,8 @@ export class UIManager {
 
         const appPackage = this.selectedAppPackage;
         const mode = this.modeDropdown.getValue();
-        const downFps = this.downFpsDropdown.getValue() ?? -1;
-        const upFps = this.upFpsDropdown.getValue() ?? -1;
+        const downFps = parseInt(this.downFpsDropdown.getValue(), 10) || -1;
+        const upFps = parseInt(this.upFpsDropdown.getValue(), 10) || -1;
 
         if (this.configManager.hasRuleForApp(appPackage)) {
             await this.configManager.removeRule(appPackage);
@@ -625,10 +627,10 @@ export class UIManager {
         try {
             await this.configManager.addRule(appPackage, mode, upFps, downFps);
             this.renderRulesList();
-            this.hideModal();
         } catch (error) {
             this.showToast('保存规则失败: ' + error.message);
         }
+        this.hideModal();
     }
 
     // ========== 配置 ==========
