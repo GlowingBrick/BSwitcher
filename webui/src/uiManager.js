@@ -707,7 +707,7 @@ export class UIManager {
                 inputHtml = `<input type="number" class="input-text" name="${field.key}" value="${value}" ${field.min ? `min="${field.min}"` : ''} ${field.max ? `max="${field.max}"` : ''} ${isDisabled ? 'disabled' : ''}>`;
                 break;
             case 'checkbox':
-                inputHtml = `<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="${field.key}" ${value ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}> <span style="font-size:12px;color:var(--text-secondary)">${field.description}</span></label>`;
+                inputHtml = `<div class="config-checkbox-wrap"><label class="config-checkbox-label"><input type="checkbox" name="${field.key}" ${value ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}><span class="cb-text">${field.label}</span></label></div><div class="config-desc">${field.description}</div>`;
                 break;
             case 'select':
                 inputHtml = `<div data-dropdown-key="${field.key}" class="dropdown-wrap"></div>`;

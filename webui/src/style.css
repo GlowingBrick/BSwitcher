@@ -1089,25 +1089,18 @@ body {
   margin-bottom: 6px;
 }
 
-/* Checkbox layout */
-.config-item label:has(input[type="checkbox"]) {
-  display: flex;
+/* Checkbox layout - 必须高于 .config-item label 的优先级 */
+.config-item label.config-checkbox-label {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 0;
+  gap: 8px;
+  margin-bottom: 2px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.config-item label:has(input[type="checkbox"]) span {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.config-item input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent);
-  flex-shrink: 0;
+.config-item label.config-checkbox-label .cb-text {
+  white-space: nowrap;
 }
 
 .config-item input,
@@ -1116,7 +1109,8 @@ body {
 .config-desc {
   font-size: 12px;
   color: var(--text-dim);
-  margin-top: 4px;
+  margin-top: 2px;
+  line-height: 1.3;
 }
 
 .config-item.disabled { opacity: 0.4; pointer-events: none; }
