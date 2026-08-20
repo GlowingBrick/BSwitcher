@@ -7,10 +7,142 @@
 #include "inotifywatcher.hpp"
 #include <Alog.hpp>
 #include <atomic>
+#include <cerrno>
+#include <condition_variable>
+#include <cstring>
 #include <filesystem>
+#include <mutex>
+#include <optional>
 #include <set>
+#include <string>
 #include <sys/wait.h>
 #include <thread>
+#include <unistd.h>
+#include <vector>
+
+/*
+    命令执行器：解耦刷新率切换与外部命令执行
+
+    change_fps 只负责把一批命令提交给这里，由独立线程串行执行并阻塞回收。
+    这样做有三个原因：
+      1. 阻塞 waitpid 才能真正回收子进程。原先在提交侧用 WNOHANG，
+         调用瞬间子进程尚未退出，waitpid 立即返回 0 且不再重试，
+         导致每执行一条命令泄漏一个僵尸进程。
+      2. 阻塞 waitpid 不能放在触摸热路径上（单条 cmd settings put
+         可达数十至数百毫秒），故移入独立线程。
+      3. 串行执行保证"最后提交的最后生效"。若并发执行，多条
+         settings put 的完成顺序不确定，快速滑动时旧帧率可能后落盘。
+
+    新提交整批覆盖旧的未执行提交：滑动过程中被跳过的中间帧率无需下发，
+    顺带减轻对 system_server 的冲击。
+*/
+class CommandExecutor {
+public:
+    using Command = std::vector<std::string>;
+    using Batch = std::vector<Command>;
+
+    ~CommandExecutor() {
+        stop();
+    }
+
+    void start() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (worker_.joinable()) {
+            return;
+        }
+        stopping_ = false;
+        worker_ = std::thread(&CommandExecutor::loop, this);
+    }
+
+    // 等待当前批次执行完毕后退出，不打断已在运行的命令
+    void stop() {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (!worker_.joinable()) {
+                return;
+            }
+            stopping_ = true;
+        }
+        cv_.notify_all();
+        worker_.join();
+    }
+
+    // 提交一批命令，覆盖尚未执行的旧提交。对调用方几乎无阻塞
+    void submit(Batch batch) {
+        if (batch.empty()) {
+            return;
+        }
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (stopping_ || !worker_.joinable()) {  //未运行时丢弃，避免堆积永不执行的提交
+                return;
+            }
+            pending_ = std::move(batch);
+        }
+        cv_.notify_one();
+    }
+
+private:
+    void loop() {
+        for (;;) {
+            Batch batch;
+            {
+                std::unique_lock<std::mutex> lock(mutex_);
+                //条件变量阻塞等待，空闲时不占用CPU
+                cv_.wait(lock, [this]() { return pending_.has_value() || stopping_; });
+
+                if (!pending_) {  //仅在 stopping_ 且无待执行批次时退出
+                    return;
+                }
+                batch = std::move(*pending_);
+                pending_.reset();
+            }
+
+            for (const auto& command : batch) {
+                run(command);
+            }
+        }
+    }
+
+    static void run(const Command& command) {
+        if (command.empty()) {
+            return;
+        }
+
+        //argv 必须在 fork 之前构造完毕。
+        //fork 出的子进程只有当前线程，若此时其他线程持有 malloc 锁，
+        //子进程内再做堆分配会死锁，因此 child 中只允许 execv/_exit。
+        std::vector<char*> argv;
+        argv.reserve(command.size() + 1);
+        for (const auto& arg : command) {
+            argv.push_back(const_cast<char*>(arg.c_str()));
+        }
+        argv.push_back(nullptr);
+
+        pid_t pid = fork();
+        if (pid == 0) {
+            execv(argv[0], argv.data());
+            _exit(127);
+        } else if (pid < 0) {
+            LOGE("Failed to fork for %s: %s", argv[0], strerror(errno));
+            return;
+        }
+
+        int status;
+        while (waitpid(pid, &status, 0) < 0) {
+            if (errno != EINTR) {  //被信号打断需重试，否则漏回收
+                LOGE("waitpid failed for pid %d: %s", pid, strerror(errno));
+                return;
+            }
+        }
+    }
+
+    std::thread worker_;
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    std::optional<Batch> pending_;
+    bool stopping_ = false;
+};
 
 class DynamicFpsTarget : public ConfigTarget {
 private:
@@ -25,6 +157,8 @@ private:
 
     nlohmann::json fpslist;
     mutable std::mutex fpsMutex;
+
+    CommandExecutor executor;
 
     bool* fpsforce;
 
@@ -77,6 +211,7 @@ public:
 
     void init() {
         if (!running_.exchange(true)) {
+            executor.start();  //必须先于工作线程启动，否则首批提交会被丢弃
             worker_thread_ = std::thread(&DynamicFpsTarget::work, this);
             LOGD("DynamicFpsTarget Started");
         }
@@ -89,6 +224,7 @@ public:
             if (worker_thread_.joinable()) {
                 worker_thread_.join();
             }
+            executor.stop();  //待工作线程退出后再停，等当前批次执行完毕
         }
     }
 
@@ -148,21 +284,28 @@ private:
         if (currentfps != fps || force) {
             currentfps = fps;
             LOGD("Frame rate changed to %d", fps);
+
+            CommandExecutor::Batch batch;
             if (!using_backdoor.load(std::memory_order_relaxed)) {
-                execute("/system/bin/cmd", "settings", "put", "system", "peak_refresh_rate", std::to_string(fps).c_str());
-                execute("/system/bin/cmd", "settings", "put", "system", "min_refresh_rate", std::to_string(fps).c_str());
-                execute("/system/bin/cmd", "settings", "put", "system", "miui_refresh_rate", std::to_string(fps).c_str());
-                execute("/system/bin/cmd", "settings", "put", "secure", "miui_refresh_rate", std::to_string(fps).c_str());
+                const std::string fpsStr = std::to_string(fps);
+                batch = {
+                    {"/system/bin/cmd", "settings", "put", "system", "peak_refresh_rate", fpsStr},
+                    {"/system/bin/cmd", "settings", "put", "system", "min_refresh_rate", fpsStr},
+                    {"/system/bin/cmd", "settings", "put", "system", "miui_refresh_rate", fpsStr},
+                    {"/system/bin/cmd", "settings", "put", "secure", "miui_refresh_rate", fpsStr}};
             } else {
                 int id = getFpsId(fps) - 1;
                 if (id < 0) {
                     id = 0;
                 }
 
-                execute("/system/bin/service", "call", "SurfaceFlinger",
-                        std::to_string(backdoorid.load(std::memory_order_relaxed)).c_str(),
-                        "i32", std::to_string(id).c_str());
+                batch = {
+                    {"/system/bin/service", "call", "SurfaceFlinger",
+                     std::to_string(backdoorid.load(std::memory_order_relaxed)),
+                     "i32", std::to_string(id)}};
             }
+
+            executor.submit(std::move(batch));  //整批提交，覆盖未执行的旧提交
         }
     }
 
@@ -193,19 +336,6 @@ private:
         int diff_prev = std::abs(key - prev_it->first);
         int diff_next = std::abs(it->first - key);
         return (diff_prev <= diff_next) ? prev_it->second : it->second;
-    }
-
-    template <typename... Args>
-    void execute(Args&&... args) {
-        std::vector<const char*> argv = {std::forward<Args>(args)..., nullptr};
-
-        pid_t pid = fork();
-        if (pid == 0) {
-            execv(argv[0], const_cast<char* const*>(argv.data()));
-            _exit(127);
-        } else if (pid > 0) {
-            waitpid(pid, nullptr, WNOHANG);
-        }
     }
 
 public:
